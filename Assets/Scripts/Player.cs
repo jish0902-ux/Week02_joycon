@@ -33,6 +33,7 @@ public class Player : MonoBehaviour {
 	float velocityXSmoothing;
 
 	Controller2D controller;
+	private PlayerJuice juice;
 
 	Vector2 directionalInput;
 	bool wallSliding;
@@ -42,6 +43,7 @@ public class Player : MonoBehaviour {
 
     void Start() {
 		controller = GetComponent<Controller2D> ();
+		juice = GetComponent<PlayerJuice> ();
 
 		gravity = -(2 * maxJumpHeight) / Mathf.Pow (timeToJumpApex, 2);
 		maxJumpVelocity = Mathf.Abs(gravity) * timeToJumpApex;
@@ -118,6 +120,7 @@ public class Player : MonoBehaviour {
 			} else {
 				velocity.y = maxJumpVelocity;
 			}
+			juice?.PlayJumpEffects();
 		}
 
 	}
