@@ -48,33 +48,32 @@ public class Player : MonoBehaviour {
     void Update() {
 		CalculateVelocity ();
 		HandleWallSliding ();
-        Handlerope(directionalInput);
+        //Handlerope(directionalInput);
 
-        //controller.Move (velocity * Time.deltaTime, directionalInput);
+        controller.Move (velocity * Time.deltaTime, directionalInput);
 
-
-		if (controller.collisions.above || controller.collisions.below ) {
-			if (controller.collisions.slidingDownMaxSlope) {
-				velocity.y += controller.collisions.slopeNormal.y * -gravity * Time.deltaTime;
-			} else {
-				velocity.y = 0;
-			}
-		}
+        velocity.y = 0;
+       
 
 
 
 	}
 
-    private void Handlerope(Vector2 input)
+   /* private void Handlerope(Vector2 input)
     {
         Vector2 move = velocity * Time.deltaTime; // X/Y 모두 계산(여기서 dt 적용)
 
         if (rope && rope.IsGrappling)
         {
-            rope.ConstrainMoveYOnly((Vector2)transform.position, ref move);
+
+            if (rope.ApplyRopeAction((Vector2)transform.position, ref move, input.x, input.y, jump, Time.deltaTime, out var impulse))
+            {
+                if (controller. && impulse != Vector2.zero) AddVelocity(impulse); // 또는 move += impulse * dt;
+            }
         }
+
         controller.Move(move, input, standingOnPlatform: false);
-    }
+    }*/
 
     public void SetDirectionalInput (Vector2 input) {
 		directionalInput = input;

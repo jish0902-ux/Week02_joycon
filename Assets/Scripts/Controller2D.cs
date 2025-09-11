@@ -21,7 +21,7 @@ public class Controller2D : RaycastController {
 
 	public void Move(Vector2 moveAmount, Vector2 input, bool standingOnPlatform = false) {
 
-        Debug.Log($"move {moveAmount},input {input},  ");
+        //Debug.Log($"move {moveAmount},input {input},  ");
 
         UpdateRaycastOrigins();
 
