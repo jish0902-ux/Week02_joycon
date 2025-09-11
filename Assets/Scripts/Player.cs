@@ -1,5 +1,7 @@
-﻿using UnityEngine;
+﻿using System;
 using System.Collections;
+using UnityEngine;
+using UnityEngine.Windows;
 
 [RequireComponent (typeof (Controller2D))]
 public class Player : MonoBehaviour {
@@ -31,30 +33,50 @@ public class Player : MonoBehaviour {
 	bool wallSliding;
 	int wallDirX;
 
-	void Start() {
+	private KinematicGrapple2D rope;
+
+    void Start() {
 		controller = GetComponent<Controller2D> ();
 
 		gravity = -(2 * maxJumpHeight) / Mathf.Pow (timeToJumpApex, 2);
 		maxJumpVelocity = Mathf.Abs(gravity) * timeToJumpApex;
 		minJumpVelocity = Mathf.Sqrt (2 * Mathf.Abs (gravity) * minJumpHeight);
-	}
 
-	void Update() {
+        rope = GetComponent<KinematicGrapple2D>();
+
+    }
+    void Update() {
 		CalculateVelocity ();
 		HandleWallSliding ();
+        Handlerope(directionalInput);
 
-		controller.Move (velocity * Time.deltaTime, directionalInput);
+        //controller.Move (velocity * Time.deltaTime, directionalInput);
 
-		if (controller.collisions.above || controller.collisions.below) {
+
+		if (controller.collisions.above || controller.collisions.below ) {
 			if (controller.collisions.slidingDownMaxSlope) {
 				velocity.y += controller.collisions.slopeNormal.y * -gravity * Time.deltaTime;
 			} else {
 				velocity.y = 0;
 			}
 		}
+
+
+
 	}
 
-	public void SetDirectionalInput (Vector2 input) {
+    private void Handlerope(Vector2 input)
+    {
+        Vector2 move = velocity * Time.deltaTime; // X/Y 모두 계산(여기서 dt 적용)
+
+        if (rope && rope.IsGrappling)
+        {
+            rope.ConstrainMoveYOnly((Vector2)transform.position, ref move);
+        }
+        controller.Move(move, input, standingOnPlatform: false);
+    }
+
+    public void SetDirectionalInput (Vector2 input) {
 		directionalInput = input;
 	}
 
@@ -124,6 +146,10 @@ public class Player : MonoBehaviour {
 	void CalculateVelocity() {
 		float targetVelocityX = directionalInput.x * moveSpeed;
 		velocity.x = Mathf.SmoothDamp (velocity.x, targetVelocityX, ref velocityXSmoothing, (controller.collisions.below)?accelerationTimeGrounded:accelerationTimeAirborne);
-		velocity.y += gravity * Time.deltaTime;
+
+		if (!rope.IsGrappling)
+			velocity.y += gravity * Time.deltaTime;
+		else
+			velocity.y = 0;
 	}
 }

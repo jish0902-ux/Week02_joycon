@@ -20,7 +20,10 @@ public class Controller2D : RaycastController {
 	}
 
 	public void Move(Vector2 moveAmount, Vector2 input, bool standingOnPlatform = false) {
-		UpdateRaycastOrigins ();
+
+        Debug.Log($"move {moveAmount},input {input},  ");
+
+        UpdateRaycastOrigins();
 
 		collisions.Reset ();
 		collisions.moveAmountOld = moveAmount;
@@ -46,7 +49,8 @@ public class Controller2D : RaycastController {
 		}
 	}
 
-	void HorizontalCollisions(ref Vector2 moveAmount) {
+
+    void HorizontalCollisions(ref Vector2 moveAmount) {
 		float directionX = collisions.faceDir;
 		float rayLength = Mathf.Abs (moveAmount.x) + skinWidth;
 
