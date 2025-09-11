@@ -48,9 +48,9 @@ public class Player : MonoBehaviour {
     void Update() {
 		CalculateVelocity ();
 		HandleWallSliding ();
-        Handlerope(directionalInput);
+        //Handlerope(directionalInput);
 
-        //controller.Move (velocity * Time.deltaTime, directionalInput);
+        controller.Move (velocity * Time.deltaTime, directionalInput);
 
 
 		if (controller.collisions.above || controller.collisions.below ) {
@@ -146,10 +146,7 @@ public class Player : MonoBehaviour {
 	void CalculateVelocity() {
 		float targetVelocityX = directionalInput.x * moveSpeed;
 		velocity.x = Mathf.SmoothDamp (velocity.x, targetVelocityX, ref velocityXSmoothing, (controller.collisions.below)?accelerationTimeGrounded:accelerationTimeAirborne);
-
-		if (!rope.IsGrappling)
-			velocity.y += gravity * Time.deltaTime;
-		else
-			velocity.y = 0;
+        velocity.y += gravity * Time.deltaTime;
+       
 	}
 }
