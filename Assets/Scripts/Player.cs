@@ -8,7 +8,7 @@ public class Player : MonoBehaviour {
 
 	public float maxJumpHeight = 4;
 	public float minJumpHeight = 1;
-	public float timeToJumpApex = .4f;
+	public float timeToJumpApex = .4f; //점프 최고점 도달 시간
 	float accelerationTimeAirborne = .2f;
 	float accelerationTimeGrounded = .1f;
 	float moveSpeed = 6;
@@ -21,6 +21,11 @@ public class Player : MonoBehaviour {
 	public float wallStickTime = .25f;
 	float timeToWallUnstick;
 
+	public float coyoteTime = 0.1f; //코요테타임 지속 시간
+	private float coyoteTimeCounter;
+
+
+	//계산용 변수
 	float gravity;
 	float maxJumpVelocity;
 	float minJumpVelocity;
@@ -28,6 +33,7 @@ public class Player : MonoBehaviour {
 	float velocityXSmoothing;
 
 	Controller2D controller;
+	private PlayerJuice juice;
 
 	Vector2 directionalInput;
 	bool wallSliding;
@@ -37,6 +43,7 @@ public class Player : MonoBehaviour {
 
     void Start() {
 		controller = GetComponent<Controller2D> ();
+		juice = GetComponent<PlayerJuice> ();
 
 		gravity = -(2 * maxJumpHeight) / Mathf.Pow (timeToJumpApex, 2);
 		maxJumpVelocity = Mathf.Abs(gravity) * timeToJumpApex;
@@ -46,7 +53,15 @@ public class Player : MonoBehaviour {
 
     }
     void Update() {
-		CalculateVelocity ();
+		if(controller.collisions.below) //Controller2D로 부터 땅이 있는 지 정보 받아와서 땅이면 -> 코요테 타이머를 최대로
+		{
+			coyoteTimeCounter = coyoteTime;
+		}
+		else //공중이면 타이머 감소
+		{
+			coyoteTimeCounter -= Time.deltaTime;
+		}
+		CalculateVelocity();
 		HandleWallSliding ();
         //Handlerope(directionalInput);
 
@@ -94,7 +109,8 @@ public class Player : MonoBehaviour {
 				velocity.y = wallLeap.y;
 			}
 		}
-		if (controller.collisions.below) {
+		if (controller.collisions.below || coyoteTimeCounter > 0) {
+			coyoteTimeCounter = 0;
 			if (controller.collisions.slidingDownMaxSlope) {
 				if (directionalInput.x != -Mathf.Sign (controller.collisions.slopeNormal.x)) { // not jumping against max slope
 					velocity.y = maxJumpVelocity * controller.collisions.slopeNormal.y;
@@ -103,7 +119,9 @@ public class Player : MonoBehaviour {
 			} else {
 				velocity.y = maxJumpVelocity;
 			}
+			juice?.PlayJumpEffects();
 		}
+
 	}
 
 	public void OnJumpInputUp() {
