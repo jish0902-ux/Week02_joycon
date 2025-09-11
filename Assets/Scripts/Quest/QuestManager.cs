@@ -1,4 +1,4 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -6,14 +6,14 @@ using System.Text;
 [DisallowMultipleComponent]
 public sealed class QuestManager : MonoBehaviour
 {
-    [SerializeField] private QuestSO[] questDB; // µî·ÏµÈ Äù½ºÆ®µé(ÇÊ¿äÇÑ °Í¸¸ ³Ö±â)
+    [SerializeField] private QuestSO[] questDB; // ë“±ë¡ëœ í€˜ìŠ¤íŠ¸ë“¤(í•„ìš”í•œ ê²ƒë§Œ ë„£ê¸°)
 
-    // --- ·±Å¸ÀÓ »óÅÂ ---
+    // --- ëŸ°íƒ€ì„ ìƒíƒœ ---
     [Serializable]
     public struct SubTaskState
     {
-        public int targetHash;     // ºñ±³ ÃÖÀûÈ­¿ë
-        public string targetId;    // UI¿ë
+        public int targetHash;     // ë¹„êµ ìµœì í™”ìš©
+        public string targetId;    // UIìš©
         public bool done;
     }
 
@@ -21,7 +21,7 @@ public sealed class QuestManager : MonoBehaviour
     public class ObjectiveState
     {
         public ObjectiveDef def;
-        public SubTaskState[] subs; // InteractSetÀÏ ¶§ ¼­ºêÅÂ½ºÅ© ¹è¿­
+        public SubTaskState[] subs; // InteractSetì¼ ë•Œ ì„œë¸ŒíƒœìŠ¤í¬ ë°°ì—´
         public bool completed;
     }
 
@@ -34,11 +34,11 @@ public sealed class QuestManager : MonoBehaviour
         public ObjectiveState[] objectives;
     }
 
-    // Äù½ºÆ®ID -> »óÅÂ
+    // í€˜ìŠ¤íŠ¸ID -> ìƒíƒœ
     readonly Dictionary<uint, QuestState> _states = new(16);
 
-    // UI °»½Å µî ¾Ë¸²
-    public event Action<uint> OnQuestUpdated; // ÆÄ¶ó¹ÌÅÍ: questId
+    // UI ê°±ì‹  ë“± ì•Œë¦¼
+    public event Action<uint> OnQuestUpdated; // íŒŒë¼ë¯¸í„°: questId
 
     void OnEnable() => QuestEvents.OnInteract += OnInteract;
     void OnDisable() => QuestEvents.OnInteract -= OnInteract;
@@ -53,7 +53,7 @@ public sealed class QuestManager : MonoBehaviour
     {
         if (TryGetState(questId, out var qs))
         {
-            if (qs.started) return false; // ÀÌ¹Ì ½ÃÀÛ
+            if (qs.started) return false; // ì´ë¯¸ ì‹œì‘
             qs.started = true;
             OnQuestUpdated?.Invoke(questId);
             return true;
@@ -69,11 +69,11 @@ public sealed class QuestManager : MonoBehaviour
         return true;
     }
 
-    // ¿ÜºÎ¿¡¼­ Á¶È¸: ½º³À¼¦ Á¦°ø(UI¿¡¼­ »ç¿ë)
+    // ì™¸ë¶€ì—ì„œ ì¡°íšŒ: ìŠ¤ëƒ…ìƒ· ì œê³µ(UIì—ì„œ ì‚¬ìš©)
     public bool TryGetSnapshot(uint questId, out QuestState qs)
         => _states.TryGetValue(questId, out qs);
 
-    // ----------------- ³»ºÎ ±¸Çö -----------------
+    // ----------------- ë‚´ë¶€ êµ¬í˜„ -----------------
     QuestSO FindQuestSO(uint id)
     {
         for (int i = 0; i < questDB.Length; ++i)
@@ -116,23 +116,27 @@ public sealed class QuestManager : MonoBehaviour
     bool TryGetState(uint questId, out QuestState qs)
         => _states.TryGetValue(questId, out qs);
 
+
+    // í€˜ìŠ¤íŠ¸ í—¨ë“¤ëŸ¬
     void OnInteract(QuestEvents.InteractMsg msg)
     {
-        // ÁøÇà Áß ¸ğµç Äù½ºÆ® °Ë»ç(ÀÏ¹İÀûÀ¸·Î µ¿½Ã ÁøÇà ¼ö´Â ÀûÀ½)
-        foreach (var kv in _states)
+        _keysScratch.Clear();
+        foreach (var id in _states.Keys) _keysScratch.Add(id);
+
+        _changedIds.Clear();
+
+        for (int k = 0; k < _keysScratch.Count; ++k)
         {
-            var questId = kv.Key;
-            var qs = kv.Value;
+            var questId = _keysScratch[k];
+            if (!_states.TryGetValue(questId, out var qs)) continue;
             if (!qs.started || qs.completed) continue;
 
             bool changed = false;
 
-            // ¼ø¼­ °­Á¦¸é Ã¹ ¹Ì¿Ï·á ¸ñÇ¥¸¸ °Ë»ç
             if (qs.so.sequentialObjectives)
             {
                 int idx = GetFirstIncompleteObjectiveIndex(qs);
-                if (idx >= 0)
-                    changed |= TryProgressObjective(qs.objectives[idx], msg);
+                if (idx >= 0) changed |= TryProgressObjective(qs.objectives[idx], msg);
             }
             else
             {
@@ -141,7 +145,6 @@ public sealed class QuestManager : MonoBehaviour
                         changed |= TryProgressObjective(qs.objectives[i], msg);
             }
 
-            // Äù½ºÆ® ¿Ï·á ÆÇÁ¤
             if (changed)
             {
                 bool allDone = true;
@@ -152,11 +155,17 @@ public sealed class QuestManager : MonoBehaviour
                     if (!o.completed) { allDone = false; break; }
                 }
                 qs.completed = allDone;
-                _states[questId] = qs; // ÂüÁ¶ Å¸ÀÔÀÌÁö¸¸ ¾ÈÀüÇÏ°Ô ´Ù½Ã ³Ö¾îÁÜ
-                OnQuestUpdated?.Invoke(questId);
+
+                _changedIds.Add(questId);
             }
         }
+
+        for (int i = 0; i < _changedIds.Count; ++i)
+            OnQuestUpdated?.Invoke(_changedIds[i]);
     }
+
+    readonly List<uint> _keysScratch = new(32);
+    readonly List<uint> _changedIds = new(8);
 
     static int GetFirstIncompleteObjectiveIndex(QuestState qs)
     {
@@ -175,19 +184,19 @@ public sealed class QuestManager : MonoBehaviour
         {
             case ObjectiveType.InteractSet:
                 {
-                    // ÇØ´ç ID¸¦ °¡Áø ¼­ºêÅÂ½ºÅ© Ã¼Å©
+                    // í•´ë‹¹ IDë¥¼ ê°€ì§„ ì„œë¸ŒíƒœìŠ¤í¬ ì²´í¬
                     for (int s = 0; s < os.subs.Length; ++s)
                     {
                         ref var sub = ref os.subs[s];
                         if (!sub.done && sub.targetHash == msg.idHash)
                         {
                             sub.done = true;
-                            // ¸ğµç ¼­ºê ¿Ï·á ½Ã ¸ñÇ¥ ¿Ï·á
+                            // ëª¨ë“  ì„œë¸Œ ì™„ë£Œ ì‹œ ëª©í‘œ ì™„ë£Œ
                             bool all = true;
                             for (int k = 0; k < os.subs.Length; ++k)
                                 if (!os.subs[k].done) { all = false; break; }
 
-                            os.completed = all; // ¸¶Áö¸· ÇÏ³ª¸¸ ³²À¸¸é ¿©±â¼­ true
+                            os.completed = all; // ë§ˆì§€ë§‰ í•˜ë‚˜ë§Œ ë‚¨ìœ¼ë©´ ì—¬ê¸°ì„œ true
                             return true;
                         }
                     }
@@ -197,7 +206,7 @@ public sealed class QuestManager : MonoBehaviour
         }
     }
 
-    // --- (¼±ÅÃ) °£´Ü ¼¼ÀÌºê/·Îµå ¿¹½Ã ---
+    // --- (ì„ íƒ) ê°„ë‹¨ ì„¸ì´ë¸Œ/ë¡œë“œ ì˜ˆì‹œ ---
     [Serializable] struct SaveSub { public string id; public bool done; }
     [Serializable] struct SaveObj { public SaveSub[] subs; public bool completed; public bool optional; }
     [Serializable] struct SaveQuest { public uint id; public bool started; public bool completed; public SaveObj[] objectives; }
@@ -255,7 +264,7 @@ public sealed class QuestManager : MonoBehaviour
                 for (int s = 0; s < nSub; ++s)
                 {
                     var sub = dst.subs[s];
-                    // id ¸ÅÄª º¸Á¤(¼ø¼­ º¯µ¿ ´ëºñ)
+                    // id ë§¤ì¹­ ë³´ì •(ìˆœì„œ ë³€ë™ ëŒ€ë¹„)
                     int srcHash = Animator.StringToHash(src.subs[s].id);
                     if (sub.targetHash == srcHash) sub.done = src.subs[s].done;
                     dst.subs[s] = sub;
@@ -264,6 +273,6 @@ public sealed class QuestManager : MonoBehaviour
             }
             _states[sq.id] = qs;
         }
-        // ÇÑ¹ø¿¡ UI °»½Å ¿øÇÏ¸é ¿©±â¼­ ÀüÃ¼ ºê·ÎµåÄ³½ºÆ® °¡´É
+        // í•œë²ˆì— UI ê°±ì‹  ì›í•˜ë©´ ì—¬ê¸°ì„œ ì „ì²´ ë¸Œë¡œë“œìºìŠ¤íŠ¸ ê°€ëŠ¥
     }
 }

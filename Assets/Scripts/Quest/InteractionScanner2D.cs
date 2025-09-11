@@ -1,48 +1,54 @@
 using UnityEngine;
+using UnityEngine.InputSystem; // 새 Input System을 쓴다면
 
 public sealed class InteractionScanner2D : MonoBehaviour
 {
-    [Header("Refs")]
-    [SerializeField] private Transform player;
-    [SerializeField] private LayerMask interactableMask;
-    [SerializeField] private float radius = 1.8f;
-    [SerializeField] private KeyCode key = KeyCode.E;
+    [SerializeField] Transform player;
+    [SerializeField] LayerMask interactableMask;
+    [SerializeField] float radius = 1.8f;
+    [SerializeField] KeyCode legacyKey = KeyCode.E; // 레거시 입력용
 
-    static readonly Collider2D[] _hits = new Collider2D[8];
+    static readonly Collider2D[] s_Hits = new Collider2D[8]; 
+    ContactFilter2D _filter;
+
+    void Awake()
+    {
+        _filter = new ContactFilter2D();
+        _filter.SetLayerMask(interactableMask); // 레이어 필터 적용 + useLayerMask=true
+        _filter.useTriggers = true;             // 트리거도 감지하려면 꼭 켜주세요
+    }
 
     void Update()
     {
-        if (!Input.GetKeyDown(key) || !player) return;
+        if (!player) return;
 
-        int n = Physics2D.OverlapCircleNonAlloc(player.position, radius, _hits, interactableMask);
-        if (n <= 0) return;
+        // --- 입력 ---
+/*#if ENABLE_INPUT_SYSTEM
+        if (!Keyboard.current?.eKey.wasPressedThisFrame ?? true) return;  // 새 Input System 폴링
+#else*/
+        if (!Input.GetKeyDown(legacyKey)) return;                          // 레거시 입력(허용은 되지만 비권장)
+//#endif
 
-        // 가장 가까운 Interactable 선택
+        // --- 탐색 (비할당) ---
+        var pos = (Vector2)player.position;
+        int count = Physics2D.OverlapCircle(pos, radius, _filter, s_Hits); // 배열에 "채워 넣음"
+        if (count == 0) return;
+
+        // 가장 가까운 대상 고르기
         float best = float.MaxValue;
-        Interactable2D pick = null;
-        var p = (Vector2)player.position;
-
-        for (int i = 0; i < n; ++i)
+        Collider2D bestCol = null;
+        for (int i = 0; i < count; ++i)
         {
-            var col = _hits[i];
-            if (!col) continue;
-            if (!col.TryGetComponent(out Interactable2D it)) continue;
-
-            float d2 = (p - (Vector2)col.transform.position).sqrMagnitude;
-            if (d2 < best) { best = d2; pick = it; }
+            var c = s_Hits[i];
+            if (!c) continue;
+            float d2 = ((Vector2)c.transform.position - pos).sqrMagnitude;
+            if (d2 < best) { best = d2; bestCol = c; }
+            s_Hits[i] = null; 
         }
 
-        if (pick != null)
-            QuestEvents.RaiseInteract(pick.Id, pick.transform.position);
-    }
-
-    // 디버그 시각화(선택)
-    void OnDrawGizmosSelected()
-    {
-        if (player)
+        if (bestCol && bestCol.TryGetComponent(out Interactable2D it))
         {
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawWireSphere(player.position, radius);
+            QuestEvents.RaiseInteract(it.Id, it.transform.position);
         }
     }
 }
