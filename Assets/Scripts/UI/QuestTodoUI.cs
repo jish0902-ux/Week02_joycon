@@ -34,7 +34,11 @@ public sealed class QuestTodoUI : MonoBehaviour
     void Redraw()
     {
         if (!manager || !ContentsText) return;
-        if (!manager.TryGetSnapshot(questId, out var qs)) { ContentsText.text = ""; return; }
+        if (!manager.TryGetSnapshot(questId, out var qs)) 
+        { 
+            ContentsText.text = ""; 
+            return; 
+        }
 
         // 제목: 퀘스트가 전부 완료되면 제목에도 취소선
         var sb = new StringBuilder(256);
