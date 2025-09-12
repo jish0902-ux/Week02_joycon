@@ -34,7 +34,7 @@ public class Player : MonoBehaviour {
 	int wallDirX;
  //Updated upstream
 
-	private KinematicGrapple2D rope;
+	//private KinematicGrapple2D rope;
 
 	void Start() {
  //Stashed changes
@@ -44,7 +44,7 @@ public class Player : MonoBehaviour {
 		maxJumpVelocity = Mathf.Abs(gravity) * timeToJumpApex;
 		minJumpVelocity = Mathf.Sqrt (2 * Mathf.Abs (gravity) * minJumpHeight);
 
-        rope = GetComponent<KinematicGrapple2D>();
+        //rope = GetComponent<KinematicGrapple2D>();
 
     }
     void Update() {
@@ -71,10 +71,10 @@ public class Player : MonoBehaviour {
     {
         Vector2 move = velocity * Time.deltaTime; // X/Y 모두 계산(여기서 dt 적용)
 
-        if (rope && rope.IsGrappling)
+      /*  if (rope && rope.IsGrappling)
         {
             //rope.ConstrainMoveYOnly((Vector2)transform.position, ref move);
-        }
+        }*/
         controller.Move(move, input, standingOnPlatform: false);
     }
 
