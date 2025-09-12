@@ -67,7 +67,7 @@ public class Player : MonoBehaviour {
 
         controller.Move (velocity * Time.deltaTime, directionalInput);
 
-        velocity.y = 0;
+        //velocity.y = 0;
        
 
 
@@ -164,9 +164,8 @@ public class Player : MonoBehaviour {
 		float targetVelocityX = directionalInput.x * moveSpeed;
 		velocity.x = Mathf.SmoothDamp (velocity.x, targetVelocityX, ref velocityXSmoothing, (controller.collisions.below)?accelerationTimeGrounded:accelerationTimeAirborne);
 
-		if (!rope.IsGrappling)
-			velocity.y += gravity * Time.deltaTime;
-		else
-			velocity.y = 0;
+
+        velocity.y += gravity * Time.deltaTime;
+  
 	}
 }
