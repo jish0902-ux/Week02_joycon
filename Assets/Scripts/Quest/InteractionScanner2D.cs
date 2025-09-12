@@ -1,5 +1,6 @@
-﻿using UnityEngine;
-using Game.Quests; // QuestFlags 퍼사드
+﻿using Game.Quests;            // QuestFlags 퍼사드
+using UnityEngine;
+using UnityEngine.InputSystem; // ★ New Input System
 
 [DisallowMultipleComponent]
 public sealed class InteractionScanner2D : MonoBehaviour
@@ -12,10 +13,21 @@ public sealed class InteractionScanner2D : MonoBehaviour
     [SerializeField] LayerMask interactableMask;
     [SerializeField, Min(0.2f)] float radius = 1.8f;
 
-    [Header("Input (Legacy)")]
-    [SerializeField] KeyCode key = KeyCode.E;
-    [SerializeField] string moveAxisX = "Horizontal";
-    [SerializeField] string moveAxisY = "Vertical";
+    // ──────────────────────────────────────────────────────────────────────────
+    // New Input System
+    // - interactAction: Button(ActionType=Button), E/PadSouth 등 바인딩
+    // - moveAction:     Value Vector2(ActionType=Value), WASD/Stick 2D Composite
+    // ──────────────────────────────────────────────────────────────────────────
+    [Header("Input (New Input System)")]
+    [SerializeField] private InputActionReference interactAction; // Button
+    [SerializeField] private InputActionReference moveAction;     // Vector2
+    [SerializeField] private bool autoEnableActions = true;
+
+    InputAction _interact;
+    InputAction _move;
+
+    // 프레임 단위 눌림(Performed) 캐치 후 소모(버퍼)
+    bool _interactPressedThisFrame;
 
     [Header("Buffer / Coyote / HoldGrace")]
     [SerializeField, Range(0.02f, 0.25f)] float inputBuffer = 0.12f;
@@ -55,6 +67,54 @@ public sealed class InteractionScanner2D : MonoBehaviour
         _filter = new ContactFilter2D();
         _filter.SetLayerMask(interactableMask);
         _filter.useTriggers = true;
+
+        // 레퍼런스 → 실제 액션 캐싱
+        _interact = interactAction ? interactAction.action : null;
+        _move = moveAction ? moveAction.action : null;
+    }
+
+    void OnEnable()
+    {
+        // 액션 Enable (PlayerInput에서 이미 Enable 중이면 중복 호출해도 안전)
+        if (autoEnableActions)
+        {
+            _interact?.Enable();
+            _move?.Enable();
+        }
+
+        if (_interact != null)
+        {
+            _interact.performed += OnInteractPerformed; // 눌림 한 번 캐치(버퍼용)
+            // 취향에 따라 started로 바꿔도 OK (즉시 버퍼링)
+        }
+    }
+
+    void OnDisable()
+    {
+        if (_interact != null)
+        {
+            _interact.performed -= OnInteractPerformed;
+        }
+
+        if (autoEnableActions)
+        {
+            _interact?.Disable();
+            _move?.Disable();
+        }
+    }
+
+    // performed 시 한 프레임 플래그 ON (Update에서 소모)
+    void OnInteractPerformed(InputAction.CallbackContext ctx)
+    {
+        _interactPressedThisFrame = true;
+        _lastPressAt = Time.time;
+    }
+
+    bool ConsumePressedThisFrame()
+    {
+        bool p = _interactPressedThisFrame;
+        _interactPressedThisFrame = false;
+        return p;
     }
 
     void Update()
@@ -62,9 +122,8 @@ public sealed class InteractionScanner2D : MonoBehaviour
         if (!player) return;
 
         // ----- HOLD 진행 우선 -----
-        bool isDown = Input.GetKey(key);
-        bool pressed = Input.GetKeyDown(key);
-        if (pressed) _lastPressAt = Time.time;
+        bool isDown = _interact != null && _interact.IsPressed(); // 현재 눌림 유지?
+        bool pressed = ConsumePressedThisFrame();                   // 이번 프레임에 눌렸는가?
 
         if (_holdTarget)
         {
@@ -118,7 +177,6 @@ public sealed class InteractionScanner2D : MonoBehaviour
             }
             else
             {
-                // 시야(반경)에서 벗어난 지 grace를 넘김 → 리셋
                 _stayTarget = null;
                 _stayElapsed = 0f;
             }
@@ -175,7 +233,7 @@ public sealed class InteractionScanner2D : MonoBehaviour
         if (!_focus.HasRequiredFlags(QuestFlags.Has)) return;
         if (!_focus.CheckItem(Inventory.HasItem)) return;
 
-        if(_focus.ActiveToDestory == true)
+        if (_focus.ActiveToDestory == true)
         {
             Debug.Log($"ActiveToDestory {_focus.transform.name}");
             Destroy(_focus.gameObject);
@@ -199,22 +257,21 @@ public sealed class InteractionScanner2D : MonoBehaviour
                 break;
 
             case InteractionKind.EnterArea:
-                // EnterArea(머무르기)는 위 STAY 누적 블록이 자동 처리 → 입력으로는 아무 것도 하지 않음
+                // EnterArea(머무르기)는 위 STAY 누적 블록이 자동 처리
                 break;
 
             case InteractionKind.UseItem:
                 QuestEvents.RaiseInteract(_focus.Id, _focus.transform.position, InteractionKind.UseItem);
                 break;
-
-            
         }
     }
 
     bool IsMoving()
     {
-        float x = Input.GetAxisRaw(moveAxisX);
-        float y = Input.GetAxisRaw(moveAxisY);
-        return (x * x + y * y) > 0.0001f;
+        if (_move == null) return false;
+        Vector2 mv = _move.ReadValue<Vector2>(); // WASD/스틱 합성값
+        // 아주 작은 스냅/드리프트 무시
+        return (mv.x * mv.x + mv.y * mv.y) > 0.0001f;
     }
 
     // 프롬프트 타깃 + Stay 후보 동시 선별
