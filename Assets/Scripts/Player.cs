@@ -32,12 +32,10 @@ public class Player : MonoBehaviour {
 	Vector2 directionalInput;
 	bool wallSliding;
 	int wallDirX;
- //Updated upstream
 
 	private KinematicGrapple2D rope;
 
 	void Start() {
- //Stashed changes
 		controller = GetComponent<Controller2D> ();
 
 		gravity = -(2 * maxJumpHeight) / Mathf.Pow (timeToJumpApex, 2);
