@@ -7,16 +7,18 @@ public class PlayerCarrying : MonoBehaviour
     [Header("Carry Settings")]
     public Transform holdPoint;
     public float carryingTop;//제일 위에 들고있는 위치
-    public Vector2 dropOffset = new Vector2(1.0f, 0f); // 플레이어 기준 드롭 위치
+    public Vector2 dropOffset; // 플레이어 기준 드롭 위치
     public LayerMask carryableMask;
+    public LayerMask maskObstacle;
 
-    Vector2 lastObjSize;
+    private Vector2 lastObjSize;//들고있는 것중 제일 마지막 오브젝 간격
     public float pickUpRange = 1.5f;
     public int maxCarryCount = 3;
-    public float stackOffsetY = 0.5f; // 오브젝트 간 Y 간격
+    public float stackOffsetY = 0.5f; // 오브젝트 간격
     Controller2D controller2D;
     private bool showDropGizmo = false;
     Vector2 lastDropPos;
+    Vector2 dropPos;
     float lastObjRadius = 0.25f;
 
     private List<GameObject> carriedObjects = new List<GameObject>();
@@ -34,6 +36,7 @@ public class PlayerCarrying : MonoBehaviour
         holdPoint = hp.transform;
         carryingTop = 0f; // 높이 초기화
         controller2D=GetComponent<Controller2D>();
+
     }
 
     private void LateUpdate()
@@ -129,31 +132,39 @@ public class PlayerCarrying : MonoBehaviour
             {
                 GameObject obj = carriedObjects[carriedObjects.Count - 1];//젤 위에 들고있는 오브젝
                 Rigidbody2D rb = obj.GetComponent<Rigidbody2D>();
+                BoxCollider2D box = obj.GetComponent<BoxCollider2D>();
+                Vector2 checkSize;
+                float carru = obj.transform.localScale.y;
+                if (box != null)
+                    checkSize = box.size; // 실제 콜라이더 크기 사용
+                else
+                    checkSize = obj.transform.localScale;
 
                 // 플레이어가 바라보는 방향에 드롭 위치 계산
+                dropOffset = new Vector2((obj.transform.localScale.x+transform.localScale.x)/2,0);//들고있는 것 /2+플레이어 크기
                 Vector2 dropPos = (Vector2)transform.position + dropOffset * controller2D.collisions.faceDir;
 
-                // ✅ 기즈모용 위치 저장
+                //  기즈모용 위치 저장
                 lastDropPos = dropPos;
-                lastObjSize = obj.transform.localScale;
+                lastObjSize = obj.transform.localScale*0.9f;//사이즈
                 showDropGizmo = true;
 
-                // ✅ 레이캐스트로 드롭할 공간 확인
-                Collider2D hit = Physics2D.OverlapBox(dropPos, lastObjSize, LayerMask.GetMask("Obstacle"));
+                //  레이캐스트로 드롭할 공간 확인
+                Collider2D hit = Physics2D.OverlapBox(dropPos, lastObjSize,0, LayerMask.GetMask("Obstacle"));
                 if (hit != null)
                 {
-                    Debug.Log("Cannot drop: wall detected at drop position");
+                    Debug.Log("막혔어");
                     return; // 벽에 막혀 있으면 드롭 취소
                 }
 
-                // ✅ 안전한 위치라면 드롭 진행
+                //  안전한 위치라면 드롭 진행
                 if (rb != null)
                 {
+                    rb.transform.position = dropPos;
                     rb.freezeRotation = false;
                     rb.bodyType = RigidbodyType2D.Dynamic;
                 }
 
-                obj.transform.position = dropPos;
 
                 Carryable carryable = obj.GetComponent<Carryable>();
                 if (carryable != null)
