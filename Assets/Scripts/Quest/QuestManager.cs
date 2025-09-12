@@ -71,6 +71,8 @@ public sealed class QuestManager : MonoBehaviour
         // 데모: 원하는 퀘스트 시작
         StartQuest(1001);
         StartQuest(1002);
+        StartQuest(1003);
+        StartQuest(1004);
     }
 
     // --- Public API ---
