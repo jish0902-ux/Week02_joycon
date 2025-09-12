@@ -1,45 +1,62 @@
+ï»¿using System.Runtime.CompilerServices;
 using UnityEngine;
 
 /// <summary>
-/// ÀÌµ¿Àº ¿ÜºÎ ½ºÅ©¸³Æ®°¡ °ü¸®ÇÏ°í, º» ÄÄÆ÷³ÍÆ®´Â "·ÎÇÁ »óÅÂ + Á¦¾à"¸¸ ´ã´ç.
-/// - ÁÂÅ¬¸¯: ±×·¦ »ç°İ(¸¶¿ì½º Á¶ÁØ)
-/// - ¿ìÅ¬¸¯: ÇØÁ¦
-/// - ÈÙ: ·ÎÇÁ ±æÀÌ Á¶Àı(¸±/¾ğ¸±)
-/// - ¿ÜºÎ¿¡¼­ Move È£Ãâ Àü: ConstrainMoveYOnly(ref move)·Î YÃà¸¸ ¼öÁ¤
+/// ì´ë™ì€ ì™¸ë¶€(í”Œë ˆì´ì–´) ìŠ¤í¬ë¦½íŠ¸ê°€ ê³„ì‚°í•˜ê³ ,
+/// ì´ ì»´í¬ë„ŒíŠ¸ëŠ” "ë¡œí”„ ìƒíƒœ + ì•¡ì…˜(ìŠ¤ìœ™/íŒí•‘/ë¦´/ìŠ¬ë§ìƒ· í•´ì œ)"ë§Œ ë‹´ë‹¹.
+/// - ì¢Œí´ë¦­: ê·¸ë© ì‚¬ê²©(ë§ˆìš°ìŠ¤ ì¡°ì¤€)
+/// - ìš°í´ë¦­: í•´ì œ
+/// - íœ : ë¡œí”„ ê¸¸ì´ ì¡°ì ˆ(ë¦´/ì–¸ë¦´)
+/// - ì™¸ë¶€ì—ì„œ Move í˜¸ì¶œ ì „: ApplyRopeAction(...)ìœ¼ë¡œ move ì¬êµ¬ì„±
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Controller2D))]
+[DefaultExecutionOrder(1000)] // ë³´í†µì˜ ì´ë™ ìŠ¤í¬ë¦½íŠ¸ë³´ë‹¤ ëŠ¦ê²Œ ëŒë„ë¡(ì…ë ¥ ì²˜ë¦¬ í›„)
 public sealed class KinematicGrapple2D : MonoBehaviour
 {
-    #region Inspector
+    #region Inspector - Refs
     [Header("Refs")]
     [SerializeField] Controller2D controller;
-    [SerializeField] Transform gunTip;        // ·¹ÀÌ ¿øÁ¡(¾øÀ¸¸é transform)
-    [SerializeField] Camera cam;              // Á¶ÁØ Ä«¸Ş¶ó(¾øÀ¸¸é Camera.main)
-    [SerializeField] LineRenderer lr;         // ¼±ÅÃ: ·ÎÇÁ Ç¥½Ã
+    [SerializeField] Transform gunTip;        // ë ˆì´ ì›ì (ì—†ìœ¼ë©´ transform)
+    [SerializeField] Camera cam;              // ì¡°ì¤€ ì¹´ë©”ë¼(ì—†ìœ¼ë©´ Camera.main)
+    [SerializeField] LineRenderer lr;         // ì„ íƒ: ë¡œí”„ í‘œì‹œ
+    #endregion
 
+    #region Inspector - Grapple
     [Header("Grapple")]
     [SerializeField] LayerMask grappleMask = ~0;
     [SerializeField, Range(1f, 50f)] float maxGrappleDistance = 20f;
     [SerializeField, Range(0.5f, 40f)] float ropeMin = 1.2f;
     [SerializeField, Range(1f, 60f)] float ropeMax = 25f;
-    [SerializeField, Range(0.5f, 12f)] float reelSpeed = 6f;     // ÈÙ ¹Î°¨µµ
+    [SerializeField, Range(0.5f, 12f)] float reelSpeed = 6f;     // íœ  ë¯¼ê°ë„
+    #endregion
 
-    [Header("Constraint")]
-    [SerializeField, Range(0f, 1f)] float tensionDamp = 0.2f;    // ¿ø¹æÇâ ÆØÃ¢ °¨¼è(¿¹: ¿ÜºÎ move.y°¡ °úµµÇÒ ¶§)
-    [SerializeField, Range(5f, 60f)] float maxFallSpeed = 30f;   // ÇÏ°­ ¼Óµµ Á¦ÇÑ(¼±ÅÃÀû Clamp)
-    [SerializeField, Range(0f, 0.02f)] float skin = 0.001f;      // ¹İ°æ ¿©À¯°ª
-
+    #region Inspector - Auto Detach
     [Header("Auto Detach")]
-    [SerializeField] bool autoDetachOnTooClose = true;           // ¾ŞÄ¿ Áö³ªÄ¡°Ô °¡±î¿ì¸é ÇØÁ¦
+    [SerializeField] bool autoDetachOnTooClose = true;           // ì•µì»¤ ì§€ë‚˜ì¹˜ê²Œ ê°€ê¹Œìš°ë©´ í•´ì œ
     [SerializeField, Range(0.1f, 2f)] float tooCloseDist = 0.6f;
-    [SerializeField] bool checkLineObstruction = true;           // ¾ŞÄ¿-ÇÃ·¹ÀÌ¾î »çÀÌ °¡¸² ½Ã ÇØÁ¦
+    [SerializeField] bool checkLineObstruction = true;           // ì•µì»¤-í”Œë ˆì´ì–´ ì‚¬ì´ ê°€ë¦¼ ì‹œ í•´ì œ
+    #endregion
+
+    #region Inspector - Action Tuning
+    [Header("Action Tuning")]
+    [SerializeField, Range(0f, 200f)] float tangentAccel = 90f;     // ì¢Œ/ìš° ì…ë ¥ â†’ ì ‘ì„  ê°€ì†(ê°ê°€ì†ìœ¼ë¡œ í™˜ì‚°)
+    [SerializeField, Range(0f, 10f)] float angularDamp = 2.0f;    // ê°ì†ë„ ê°ì‡ (ê³µê¸°ì €í•­ ëŠë‚Œ)
+    [SerializeField, Range(60f, 1440f)] float maxAngularSpeedDeg = 720f; // ìµœëŒ€ ê°ì†ë„(deg/s)
+    [SerializeField] bool invertDirection = false; // ì¢Œ/ìš° ë°˜ì „
+    [SerializeField, Range(0f, 3f)] float pumpAssist = 0.75f;   // ì•„ë˜ìª½ì—ì„œ ìƒ/í•˜ ì…ë ¥ ì‹œ ê°ì†ë„ ë³´ë„ˆìŠ¤
+    [SerializeField, Range(0.1f, 1f)] float pumpWindow = 0.45f;   // 'ì•„ë˜ìª½' íŒì •(ì½”ì‚¬ì¸ ì„ê³„ì¹˜)
+    [Header("Release")]
+    [SerializeField, Range(0f, 2.5f)] float releaseBoost = 1.0f;    // í•´ì œ ì‹œ ì ‘ì„  ì†ë„ ë°°ìœ¨
+    [SerializeField, Range(0f, 15f)] float radialBoost = 0f;      // í•´ì œ ì‹œ ë°©ì‚¬(ë°”ê¹¥) ì„í„ìŠ¤
     #endregion
 
     #region State
     bool _grappling;
     Vector2 _anchor;
     float _ropeLength;
+    float _angVel;       // rad/s
+    float _maxAngVel;    // rad/s (ìºì‹œ)
     #endregion
 
     #region Caches
@@ -66,6 +83,7 @@ public sealed class KinematicGrapple2D : MonoBehaviour
         if (!controller) controller = GetComponent<Controller2D>();
         if (!cam) cam = Camera.main;
         TryInitLineRenderer();
+        _maxAngVel = maxAngularSpeedDeg * Mathf.Deg2Rad;
     }
 
     void Update()
@@ -106,82 +124,106 @@ public sealed class KinematicGrapple2D : MonoBehaviour
     }
     #endregion
 
-    #region Public API (¿ÜºÎ ÀÌµ¿ ½ºÅ©¸³Æ®¿¡¼­ »ç¿ë)
+    #region Public API (ì™¸ë¶€ ì´ë™ ìŠ¤í¬ë¦½íŠ¸ì—ì„œ ì‚¬ìš©)
     /// <summary>
-    /// ¿ÜºÎ ÀÌµ¿ º¤ÅÍ¸¦ YÃà¸¸ ¼öÁ¤ÇÏ¿© ·ÎÇÁ ¹İ°æÀ» ³ÑÁö ¾Êµµ·Ï ÇÑ´Ù.
-    /// - pos: ÇöÀç À§Ä¡
-    /// - move: ¿ÜºÎ¿¡¼­ °è»êÇÑ ÀÌµ¿·®(¿©±â¼­ y¸¸ ¼öÁ¤)
-    /// return: ¼öÁ¤µÇ¾úÀ¸¸é true
+    /// ì™¸ë¶€ì—ì„œ í˜¸ì¶œ: ì…ë ¥ ê¸°ë°˜ ë¡œí”„ ì•¡ì…˜ì„ ê³„ì‚°í•´ moveë¥¼ ì¬êµ¬ì„±í•œë‹¤.
+    /// - pos: í˜„ì¬ ìœ„ì¹˜(ì›”ë“œ)
+    /// - move: ì™¸ë¶€ê°€ ê³„ì‚°í•œ ì´ë™ëŸ‰(ì´ í•¨ìˆ˜ê°€ 'ë¡œí”„ ì•¡ì…˜'ì— ë§ê²Œ ë®ì–´ì”€)
+    /// - inputX: ì¢Œ/ìš° ì…ë ¥(-1..1)  ì ‘ì„  ê°€ì†
+    /// - inputY: ìƒ/í•˜ ì…ë ¥(-1..1)  íŒí•‘/ë¦´ ë³´ì¡°(ì˜µì…˜)
+    /// - jumpPressed: trueë©´ ì´ë²ˆ í”„ë ˆì„ì— í•´ì œ(ìŠ¬ë§ìƒ· ì„í„ìŠ¤ out)
+    /// - dt: deltaTime
+    /// ë°˜í™˜: trueë©´ moveê°€ ë¡œí”„ ê¸°ì¤€ìœ¼ë¡œ ìˆ˜ì •ë¨
     /// </summary>
-    public bool ConstrainMoveYOnly(Vector2 pos, ref Vector2 move)
+    public bool ApplyRopeAction(Vector2 pos, ref Vector2 move, float inputX, float inputY, bool jumpPressed, float dt, out Vector2 releaseImpulse)
     {
-        if (!_grappling) return false;
+        releaseImpulse = Vector2.zero;
+        if (!_grappling || dt <= 0f) return false;
 
-        // ¿¹Ãø À§Ä¡(¿ÜºÎ x, ¿ÜºÎ y)
-        Vector2 pred = pos + move;
-        float dx = pred.x - _anchor.x;
-        float dy = pred.y - _anchor.y;
-
+        // í˜„ì¬ ë¡œí”„ ì¢Œí‘œê³„
+        Vector2 r = pos - _anchor;
         float L = _ropeLength;
-        float L2 = L * L;
-        float dx2 = dx * dx;
+        float rMag = r.magnitude;
+        if (rMag < 1e-6f || L < 1e-6f) return false;
 
-        // ¼öÆò¸¸À¸·Î L ÃÊ°ú¸é, y¸¸À¸·Î´Â ÇØ´äÀÌ ¾øÀ¸¹Ç·Î detach or y¸¸ ÃÖ¼ÒÈ­
-        if (dx2 > (L2 + skin))
+        Vector2 n = r / rMag;               // ë°©ì‚¬ ë‹¨ìœ„ë²¡í„°
+        Vector2 t = new Vector2(-n.y, n.x); // ì ‘ì„  ë‹¨ìœ„ë²¡í„°(ì¢ŒíšŒì „)
+
+        // 1) ê°ì†ë„ ê°±ì‹ (ì…ë ¥ + íŒí•‘ + ê°ì‡ )
+        float ix = invertDirection ? -inputX : inputX;
+
+        // ì…ë ¥ì„ ê°ê°€ì†ìœ¼ë¡œ í™˜ì‚°: a_theta â‰ˆ (tangentAccel / L)
+        float angAcc = 0f;
+        angAcc += (tangentAccel * ix) / Mathf.Max(L, 1e-4f);
+
+        // 'ì•„ë˜ìª½' ê·¼ë°©ì—ì„œ ìƒ/í•˜ ì…ë ¥ìœ¼ë¡œ íŒí•‘(ì½”ì‚¬ì¸>thresholdì¼ ë•Œ ê°€ì‚°)
+        float cosDown = Vector2.Dot(n, Vector2.down); // 1ì— ê°€ê¹Œìš¸ìˆ˜ë¡ ì•„ë˜
+        if (cosDown > pumpWindow)
+            angAcc += pumpAssist * inputY * cosDown / Mathf.Max(L, 1f);
+
+        // ê°ì‡ 
+        angAcc -= angularDamp * _angVel;
+
+        _angVel += angAcc * dt;
+        _angVel = Mathf.Clamp(_angVel, -_maxAngVel, _maxAngVel);
+
+        // 2) ê°ë³€ìœ„ & ëª©í‘œì  ê³„ì‚°
+        float dTheta = _angVel * dt;
+        Vector2 target;
+        if (Mathf.Abs(dTheta) < 1e-6f)
         {
-            // 1) °­Á¦ ÇØÁ¦
-            // Detach();
-            // return false;
+            // ì™¸ë¶€ ì˜ˆì¸¡ì„ ë°˜ê²½ Lë¡œ íˆ¬ì˜(ë°˜ì§€ë¦„ ìœ ì§€)
+            Vector2 pred = pos + move;
+            Vector2 rp = pred - _anchor;
+            float pmag = rp.magnitude;
+            Vector2 newR = (pmag > 1e-6f) ? rp * (L / pmag) : r.normalized * L;
+            target = _anchor + newR;
+        }
+        else
+        {
+            // ì •í™• íšŒì „
+            Vector2 newR = Rotate(r, dTheta).normalized * L;
+            target = _anchor + newR;
+        }
+        move = target - pos;
 
-            // 2) È¤Àº °¡´ÉÇÑ ÇÑ ¾ŞÄ¿¿¡ °¡±î¿î y·Î Å¬·¥ÇÁ(¿ø À§ ÃÖ´Ü y ¼±ÅÃ)
-            float absDx = Mathf.Sqrt(dx2);
-            float clampedDy = 0f; // ¿øÀÇ Á¢Á¡À¸·Î ½º³ÀÇÒ ¼ö ¾øÀ¸´Ï y´Â ¾ŞÄ¿ ³ôÀÌ·Î À¯µµ
-            move.y = (_anchor.y + clampedDy) - pos.y;
-            ClampFall(ref move); // °úµµÇÑ ³«ÇÏ ¹æÁö
-            return true;
+        // 3) ìë™ í•´ì œ/ê°€ë¦¼ ì²´í¬
+        AutoDetachChecks();
+        if (!_grappling) return true;
+
+        // 4) ì í”„ í•´ì œ(ìŠ¬ë§ìƒ·)
+        if (jumpPressed)
+        {
+            // ì ‘ì„  ì†ë„ v = Ï‰ Ã— L
+            float tangentialSpeed = Mathf.Abs(_angVel) * L * releaseBoost;
+            Vector2 vTan = t * Mathf.Sign(_angVel) * tangentialSpeed;
+            Vector2 vRad = n * radialBoost;
+
+            releaseImpulse = vTan + vRad; // ì™¸ë¶€ "ì†ë„"ì— ë”í•´ ì“°ê¸¸ ê¶Œì¥
+            Detach();
+            // moveëŠ” target ê¸°ë°˜ìœ¼ë¡œ ìœ ì§€í•˜ì—¬ ìì—°ìŠ¤ëŸ½ê²Œ ì´ì–´ì§€ê²Œ í•¨
         }
 
-        // ¿ø ¹æÁ¤½Ä: dx^2 + dy^2 = L^2
-        // ÁÖ¾îÁø dx·Î °¡´ÉÇÑ dy = ¡¾sqrt(L^2 - dx^2)
-        float allowedDy = Mathf.Sqrt(Mathf.Max(0f, L2 - dx2));
-
-        // ¿¹Ãø y°¡ ¿ø ¹Ù±ù( |dy| > allowedDy )ÀÌ¸é y¸¸ Á¶Á¤
-        float absDy = Mathf.Abs(dy);
-        if (absDy > allowedDy + skin)
-        {
-            // ÇöÀç dyÀÇ ºÎÈ£ À¯ÁöÇÏ¸é¼­ °æ°è·Î ½º³À
-            float newDy = Mathf.Sign(dy) * allowedDy;
-            float targetY = _anchor.y + newDy;
-            float newMoveY = targetY - pos.y;
-
-            // ¿ø¹æÇâ ÆØÃ¢ °¨¼è(¹Ù±ùÀ¸·Î ´õ ¹Ğ·Á³ª·Á´Â move.y¸¦ ¿ÏÈ­)
-            if (newMoveY > move.y) // À§·Î ÆØÃ¢ÇÏ·Á´Â °æ¿ì
-                move.y = Mathf.Lerp(move.y, newMoveY, Mathf.Clamp01(tensionDamp));
-            else
-                move.y = newMoveY;
-
-            ClampFall(ref move);
-            return true;
-        }
-
-        // ¹İ°æ ³» ¡æ ¼±ÅÃÀûÀ¸·Î ³«ÇÏ¼Óµµ¸¸ Å¬·¥ÇÁ
-        ClampFall(ref move);
-        return false;
+        return true;
     }
+    #endregion
 
-    /// <summary>¿ÜºÎ¿¡¼­ ÀÓÀÇÀÇ ÁöÁ¡À¸·Î ºÙÀÌ±â(ÃÊ±â ±æÀÌ ÁöÁ¤: À½¼ö¸é ÇöÀç °Å¸®·Î).</summary>
+    #region Public Grapple Controls
+    /// <summary>ì™¸ë¶€ì—ì„œ ì„ì˜ì˜ ì§€ì ìœ¼ë¡œ ë¶™ì´ê¸°(ì´ˆê¸° ê¸¸ì´ ì§€ì •: ìŒìˆ˜ë©´ í˜„ì¬ ê±°ë¦¬ë¡œ).</summary>
     public void AttachToPoint(Vector2 worldPoint, float initialLength = -1f)
     {
         _grappling = true;
         _anchor = worldPoint;
         float d = Vector2.Distance(_anchor, (Vector2)transform.position);
         _ropeLength = Mathf.Clamp(initialLength > 0f ? initialLength : d, ropeMin, ropeMax);
+        _angVel = 0f; // ë¶€ì •í•© ë°©ì§€
     }
 
-    /// <summary>·ÎÇÁ ÇØÁ¦.</summary>
+    /// <summary>ë¡œí”„ í•´ì œ.</summary>
     public void Detach()
     {
         _grappling = false;
+        _angVel = 0f;
         if (lr)
         {
             lr.positionCount = 0;
@@ -189,7 +231,7 @@ public sealed class KinematicGrapple2D : MonoBehaviour
         }
     }
 
-    /// <summary>·ÎÇÁ ±æÀÌ ¼³Á¤(Å¬·¥ÇÁ).</summary>
+    /// <summary>ë¡œí”„ ê¸¸ì´ ì„¤ì •(í´ë¨í”„).</summary>
     public void SetRopeLength(float length)
     {
         _ropeLength = Mathf.Clamp(length, ropeMin, ropeMax);
@@ -213,14 +255,14 @@ public sealed class KinematicGrapple2D : MonoBehaviour
     {
         if (!_grappling) return;
 
-        // ³Ê¹« °¡±î¿ì¸é ÇØÁ¦
+        // ë„ˆë¬´ ê°€ê¹Œìš°ë©´ í•´ì œ
         if (autoDetachOnTooClose && Vector2.Distance(transform.position, _anchor) < tooCloseDist)
         {
             Detach();
             return;
         }
 
-        // ¶óÀÎ °¡¸² Ã¼Å©
+        // ë¼ì¸ ê°€ë¦¼ ì²´í¬
         if (checkLineObstruction && _grappling)
         {
             Vector2 from = transform.position;
@@ -230,7 +272,7 @@ public sealed class KinematicGrapple2D : MonoBehaviour
                 bool obstructed = true;
                 for (int i = 0; i < hitCount; i++)
                 {
-                    // ¾ŞÄ¿ ÁöÁ¡ È÷Æ®´Â Çã¿ë
+                    // ì•µì»¤ ì§€ì  íˆíŠ¸ëŠ” í—ˆìš©
                     if ((sLineHits[i].point - _anchor).sqrMagnitude < 0.0001f)
                     {
                         obstructed = false; break;
@@ -282,12 +324,12 @@ public sealed class KinematicGrapple2D : MonoBehaviour
         return dir.sqrMagnitude > 1e-6f ? dir.normalized : Vector2.right;
     }
 
-    void ClampFall(ref Vector2 move)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static Vector2 Rotate(in Vector2 v, float angleRad)
     {
-        // ¿©±â¼­´Â "ÀÌ ÇÁ·¹ÀÓ ÀÌµ¿·®" ±âÁØÀ¸·Î ´Ü¼ø Å¬·¥ÇÁ.
-        // ¿ÜºÎ°¡ dt¸¦ °öÇÑ ÈÄ move¸¦ ³Ö´Â ÀüÁ¦ÀÌ¹Ç·Î, ÇÁ·¹ÀÓ´ç ÃÖ´ë ÇÏ°­·® Á¦ÇÑ ´À³¦.
-        float maxDown = -maxFallSpeed * Time.deltaTime;
-        if (move.y < maxDown) move.y = maxDown;
+        float c = Mathf.Cos(angleRad);
+        float s = Mathf.Sin(angleRad);
+        return new Vector2(c * v.x - s * v.y, s * v.x + c * v.y);
     }
     #endregion
 }
