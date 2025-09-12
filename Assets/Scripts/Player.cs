@@ -8,10 +8,10 @@ public class Player : MonoBehaviour {
 
 	public float maxJumpHeight = 4;
 	public float minJumpHeight = 1;
-	public float timeToJumpApex = .4f; //점프 최고점 도달 시간
-	public float accelerationTimeAirborne = .2f;
-	public float accelerationTimeGrounded = .1f;
-	public float moveSpeed = 6;
+	public float timeToJumpApex = .4f;
+	float accelerationTimeAirborne = .2f;
+	float accelerationTimeGrounded = .1f;
+	float moveSpeed = 6;
 
 	public Vector2 wallJumpClimb;
 	public Vector2 wallJumpOff;
@@ -21,11 +21,6 @@ public class Player : MonoBehaviour {
 	public float wallStickTime = .25f;
 	float timeToWallUnstick;
 
-	public float coyoteTime = 0.1f; //코요테타임 지속 시간
-	private float coyoteTimeCounter;
-
-
-	//계산용 변수
 	float gravity;
 	float maxJumpVelocity;
 	float minJumpVelocity;
@@ -33,17 +28,17 @@ public class Player : MonoBehaviour {
 	float velocityXSmoothing;
 
 	Controller2D controller;
-	private PlayerJuice juice;
 
 	Vector2 directionalInput;
 	bool wallSliding;
 	int wallDirX;
+ //Updated upstream
 
 	private KinematicGrapple2D rope;
 
-    void Start() {
+	void Start() {
+ //Stashed changes
 		controller = GetComponent<Controller2D> ();
-		juice = GetComponent<PlayerJuice> ();
 
 		gravity = -(2 * maxJumpHeight) / Mathf.Pow (timeToJumpApex, 2);
 		maxJumpVelocity = Mathf.Abs(gravity) * timeToJumpApex;
@@ -53,42 +48,35 @@ public class Player : MonoBehaviour {
 
     }
     void Update() {
-		if(controller.collisions.below) //Controller2D로 부터 땅이 있는 지 정보 받아와서 땅이면 -> 코요테 타이머를 최대로
-		{
-			coyoteTimeCounter = coyoteTime;
-		}
-		else //공중이면 타이머 감소
-		{
-			coyoteTimeCounter -= Time.deltaTime;
-		}
-		CalculateVelocity();
+		CalculateVelocity ();
 		HandleWallSliding ();
         //Handlerope(directionalInput);
 
         controller.Move (velocity * Time.deltaTime, directionalInput);
 
-        //velocity.y = 0;
-       
+
+		if (controller.collisions.above || controller.collisions.below ) {
+			if (controller.collisions.slidingDownMaxSlope) {
+				velocity.y += controller.collisions.slopeNormal.y * -gravity * Time.deltaTime;
+			} else {
+				velocity.y = 0;
+			}
+		}
 
 
 
 	}
 
-   /* private void Handlerope(Vector2 input)
+    private void Handlerope(Vector2 input)
     {
         Vector2 move = velocity * Time.deltaTime; // X/Y 모두 계산(여기서 dt 적용)
 
         if (rope && rope.IsGrappling)
         {
-
-            if (rope.ApplyRopeAction((Vector2)transform.position, ref move, input.x, input.y, jump, Time.deltaTime, out var impulse))
-            {
-                if (controller. && impulse != Vector2.zero) AddVelocity(impulse); // 또는 move += impulse * dt;
-            }
+            //rope.ConstrainMoveYOnly((Vector2)transform.position, ref move);
         }
-
         controller.Move(move, input, standingOnPlatform: false);
-    }*/
+    }
 
     public void SetDirectionalInput (Vector2 input) {
 		directionalInput = input;
@@ -109,8 +97,7 @@ public class Player : MonoBehaviour {
 				velocity.y = wallLeap.y;
 			}
 		}
-		if (controller.collisions.below || coyoteTimeCounter > 0) {
-			coyoteTimeCounter = 0;
+		if (controller.collisions.below) {
 			if (controller.collisions.slidingDownMaxSlope) {
 				if (directionalInput.x != -Mathf.Sign (controller.collisions.slopeNormal.x)) { // not jumping against max slope
 					velocity.y = maxJumpVelocity * controller.collisions.slopeNormal.y;
@@ -119,9 +106,7 @@ public class Player : MonoBehaviour {
 			} else {
 				velocity.y = maxJumpVelocity;
 			}
-			juice?.PlayJumpEffects();
 		}
-
 	}
 
 	public void OnJumpInputUp() {
@@ -163,9 +148,7 @@ public class Player : MonoBehaviour {
 	void CalculateVelocity() {
 		float targetVelocityX = directionalInput.x * moveSpeed;
 		velocity.x = Mathf.SmoothDamp (velocity.x, targetVelocityX, ref velocityXSmoothing, (controller.collisions.below)?accelerationTimeGrounded:accelerationTimeAirborne);
-
-
         velocity.y += gravity * Time.deltaTime;
-  
+       
 	}
 }

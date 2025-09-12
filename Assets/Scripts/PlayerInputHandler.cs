@@ -24,7 +24,9 @@ public class PlayerInputHandler : MonoBehaviour
     {
         if (context.started)
             player.OnJumpInputDown();
+        
         if (context.canceled)
             player.OnJumpInputUp();
     }
+
 }
