@@ -32,15 +32,12 @@ public class Player : MonoBehaviour {
 	Vector2 directionalInput;
 	bool wallSliding;
 	int wallDirX;
-<<<<<<< Updated upstream
+ //Updated upstream
 
 	private KinematicGrapple2D rope;
 
-    void Start() {
-=======
-	
 	void Start() {
->>>>>>> Stashed changes
+ //Stashed changes
 		controller = GetComponent<Controller2D> ();
 
 		gravity = -(2 * maxJumpHeight) / Mathf.Pow (timeToJumpApex, 2);
@@ -76,7 +73,7 @@ public class Player : MonoBehaviour {
 
         if (rope && rope.IsGrappling)
         {
-            rope.ConstrainMoveYOnly((Vector2)transform.position, ref move);
+            //rope.ConstrainMoveYOnly((Vector2)transform.position, ref move);
         }
         controller.Move(move, input, standingOnPlatform: false);
     }
