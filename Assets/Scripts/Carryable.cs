@@ -20,7 +20,7 @@ public class Carryable : MonoBehaviour
         player = GameObject.Find("Player").GetComponent<PlayerCarrying>();//플레이어 찾아넣기
         maskObstacle = LayerMask.GetMask("Obstacle");
     }
-    private void OnCollisionEnter2D(Collision2D collision)
+    private void OnCollisionStay2D(Collision2D collision)
     {
         if (carrying)
         {
