@@ -233,6 +233,8 @@ public sealed class InteractionScanner2D : MonoBehaviour
         if (!_focus.HasRequiredFlags(QuestFlags.Has)) return;
         if (!_focus.CheckItem(Inventory.HasItem)) return;
 
+
+
         if (_focus.ActiveToDestory == true)
         {
             Debug.Log($"ActiveToDestory {_focus.transform.name}");
@@ -244,6 +246,8 @@ public sealed class InteractionScanner2D : MonoBehaviour
         {
             case InteractionKind.Press:
                 QuestEvents.RaiseInteract(_focus.Id, _focus.transform.position, InteractionKind.Press);
+                Debug.Log($"Interaction {_focus.transform.name}");
+
                 break;
 
             case InteractionKind.Hold:
@@ -296,6 +300,11 @@ public sealed class InteractionScanner2D : MonoBehaviour
             if (!it.CheckItem(Inventory.HasItem)) continue;
 
             float d2 = ((Vector2)it.transform.position - pos).sqrMagnitude;
+
+            Carryable cb= it.GetComponent<Carryable>();
+
+            if (cb != null && cb.carrying == true)
+                continue;
 
             if (it.Kind == InteractionKind.EnterArea && it.RequiredStaySeconds > 0f)
             {
