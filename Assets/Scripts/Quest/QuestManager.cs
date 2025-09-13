@@ -154,6 +154,8 @@ public sealed class QuestManager : MonoBehaviour
     // --- 이벤트 핸들러 ---
     void OnInteract(QuestEvents.InteractMsg msg)
     {
+
+        Debug.Log("Events Raise" +  msg.id );
         // 활성 퀘스트 목록 스냅샷
         _keysScratch.Clear();
         foreach (var id in _states.Keys) _keysScratch.Add(id);
