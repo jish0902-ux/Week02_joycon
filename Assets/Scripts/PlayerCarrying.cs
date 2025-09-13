@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Game.Quests;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -43,10 +44,10 @@ public class PlayerCarrying : MonoBehaviour
     }
     private void Update()
     {
-            if (collideCarrying < carriedObjects.Count)
-            {//짐이 충돌하여 그 넘버를 받으면
-                CarryingDrop();
-            }
+        if (collideCarrying < carriedObjects.Count)
+        {   //짐이 충돌하여 그 넘버를 받으면
+            CarryingDrop();
+        }
         if (collideCarrying < 0)
         {
             //Debug.Log(999);
@@ -125,12 +126,37 @@ public class PlayerCarrying : MonoBehaviour
                 rb.freezeRotation = true;
             }
 
+
+
+
             carriedObjects.Add(closestObj);
 
             collideCarrying++;//충돌 할 수 있는 물체+ (최대치+1유지해야 안떨어짐)
             Carryable carryable = closestObj.GetComponent<Carryable>();
             if (carryable != null)
                 carryable.carrying = true;
+
+
+            #region Events
+            Interactable2D _focus;
+            _focus = closestObj.GetComponent<Interactable2D>();
+
+            if (_focus != null)
+            {
+                // 선행 조건 재검증
+                if (!_focus.HasRequiredFlags(QuestFlags.Has)) return;
+                if (!_focus.CheckItem(Inventory.HasItem)) return;
+
+                QuestEvents.RaiseInteract(_focus.Id, _focus.transform.position, InteractionKind.Press);
+
+            }
+            else
+            {
+                Debug.Log("_focus is null");
+            }
+
+            #endregion
+
         }
     }
 
@@ -187,40 +213,31 @@ public class PlayerCarrying : MonoBehaviour
     }
     public void CarryingDrop()
     {
-        {
-            if (collideCarrying >= 0 && collideCarrying < carriedObjects.Count)
-            {
-                Debug.Log("드갈때" + collideCarrying);
-                int renum = 0;
-                while(collideCarrying <= carriedObjects.Count)//젤 위에 든게 쌤쌤이 될 때까지 떨구기
-                {
-                    if (carriedObjects.Count > 0)
-                    {
-                        Rigidbody2D rb = carriedObjects[collideCarrying].GetComponent<Rigidbody2D>();//젤 마지막거 예외처리
-                        if (rb != null)
-                        {
-                            rb.freezeRotation = false;
-                        }
-                        carriedObjects[collideCarrying].GetComponent<Carryable>().carrying = false;//짐 들고있음 거짓으로
-                        carriedObjects.RemoveAt(collideCarrying);//제거
-                        if (carriedObjects.Count <= 0)
-                        {
-                            break;
-                        }
-                    }
-                    renum++;
-                    if (renum >= 10)
-                    {
-                        Debug.Log("반복 수 초과");
-                        break;
-                    }
-                }
-                Debug.Log("반복 수" + renum);
+        int count = carriedObjects.Count;
+        if (count == 0) { collideCarrying = 0; return; }
 
-                collideCarrying = 0;
-            }
+        // collideCarrying가 음수/과대일 수 있으니 방어
+        int startIndex = Mathf.Clamp(collideCarrying, 0, count);
+
+        // 위에서부터(리스트 끝) collideCarrying 인덱스까지 제거
+        for (int i = count - 1; i >= startIndex; --i)
+        {
+            var go = carriedObjects[i];
+            if (!go) { carriedObjects.RemoveAt(i); continue; }
+
+            if (go.TryGetComponent<Rigidbody2D>(out var rb))
+                rb.freezeRotation = false;
+
+            if (go.TryGetComponent<Carryable>(out var car))
+                car.carrying = false;
+
+            carriedObjects.RemoveAt(i);
         }
+
+        // 남은 개수에 맞춰 정리
+        collideCarrying = carriedObjects.Count;
     }
+
     private void OnDrawGizmos()
     {
         if (showDropGizmo)

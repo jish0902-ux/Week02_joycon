@@ -13,7 +13,11 @@ public sealed class CheckpointTrigger2D_RuntimeSO : MonoBehaviour
 
     void OnTriggerEnter2D(Collider2D other)
     {
+        
         if (!other.CompareTag("Player") || SaveRuntime.Current == null) return;
+
+
+        Debug.Log("Player Trigger");
 
         var pos = (Vector2)transform.position;
         if (snapToGround)
