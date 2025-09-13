@@ -61,7 +61,7 @@ public class PlayerCarrying : MonoBehaviour
         {
             if (carriedObjects[i] != null)
             {
-                float objHeight = carriedObjects[i].transform.localScale.y;
+                float objHeight = carriedObjects[i].GetComponent<Collider2D>().bounds.size.y;
                 // holdPoint 위에 누적된 높이만큼 올려서 배치
                 carriedObjects[i].transform.position = holdPoint.position + new Vector3(0, carryingTop + objHeight / 2f, 0);
                 carryingTop += objHeight; // 다음 오브젝트를 위해 누적 높이 업데이트
@@ -158,7 +158,7 @@ public class PlayerCarrying : MonoBehaviour
 
                 //  기즈모용 위치 저장
                 lastDropPos = dropPos;
-                lastObjSize = obj.transform.localScale*0.9f;//사이즈
+                lastObjSize = obj.GetComponent<Collider2D>().bounds.size*0.9f;//사이즈
                 showDropGizmo = true;
 
                 //  레이캐스트로 드롭할 공간 확인
@@ -196,7 +196,7 @@ public class PlayerCarrying : MonoBehaviour
                 {
                     if (carriedObjects.Count > 0)
                     {
-                        Rigidbody rb = carriedObjects[collideCarrying].GetComponent<Rigidbody>();//젤 마지막거 예외처리
+                        Rigidbody rb = carriedObjects[collideCarrying]?.GetComponent<Rigidbody>();//젤 마지막거 예외처리
                         if (rb != null)
                         {
                             rb.freezeRotation = false;
