@@ -1,6 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 public class PlayerCarrying : MonoBehaviour
 {
@@ -20,8 +22,9 @@ public class PlayerCarrying : MonoBehaviour
     Vector2 lastDropPos;
     Vector2 dropPos;
     float lastObjRadius = 0.25f;
+    public int collideCarrying=0;//충돌한 짐 넘버 (현재 들고있는 것보다 높게 유지해야 안떨어짐)닿은거 이상 다 떨어질거야
 
-    private List<GameObject> carriedObjects = new List<GameObject>();
+    public List<GameObject> carriedObjects = new List<GameObject>();
 
     [Header("Interaction Cooldown")]
     public float interactCooldown = 0.5f; // 쿨타임
@@ -38,12 +41,22 @@ public class PlayerCarrying : MonoBehaviour
         controller2D=GetComponent<Controller2D>();
 
     }
-
+    private void Update()
+    {
+            if (collideCarrying < carriedObjects.Count)
+            {//짐이 충돌하여 그 넘버를 받으면
+                CarryingDrop();
+            }
+        if (collideCarrying < 0)
+        {
+            //Debug.Log(999);
+        }
+    }
     private void LateUpdate()
     {
-        // 들고 있는 오브젝트를 holdPoint 위로 순차적으로 쌓기
-        carryingTop = 0f; // 누적 높이 초기화
 
+
+        carryingTop = 0f; // 누적 높이 초기화
         for (int i = 0; i < carriedObjects.Count; i++)
         {
             if (carriedObjects[i] != null)
@@ -107,18 +120,17 @@ public class PlayerCarrying : MonoBehaviour
                 else
                     rot.z = 180f;
                 closestObj.transform.eulerAngles = rot;
+                
 
                 rb.freezeRotation = true;
-                rb.bodyType = RigidbodyType2D.Kinematic; // 물리 비활성화
             }
 
             carriedObjects.Add(closestObj);
 
+            collideCarrying++;//충돌 할 수 있는 물체+ (최대치+1유지해야 안떨어짐)
             Carryable carryable = closestObj.GetComponent<Carryable>();
             if (carryable != null)
                 carryable.carrying = true;
-
-            Debug.Log($"Picked up: {closestObj.name} | Total: {carriedObjects.Count}");
         }
     }
 
@@ -162,7 +174,6 @@ public class PlayerCarrying : MonoBehaviour
                 {
                     rb.transform.position = dropPos;
                     rb.freezeRotation = false;
-                    rb.bodyType = RigidbodyType2D.Dynamic;
                 }
 
 
@@ -171,7 +182,42 @@ public class PlayerCarrying : MonoBehaviour
                     carryable.carrying = false;
 
                 carriedObjects.RemoveAt(carriedObjects.Count - 1);
-                Debug.Log($"Dropped: {obj.name}");
+            }
+        }
+    }
+    public void CarryingDrop()
+    {
+        {
+            if (collideCarrying >= 0 && collideCarrying < carriedObjects.Count)
+            {
+                Debug.Log("드갈때" + collideCarrying);
+                int renum = 0;
+                while(collideCarrying <= carriedObjects.Count)//젤 위에 든게 쌤쌤이 될 때까지 떨구기
+                {
+                    if (carriedObjects.Count > 0)
+                    {
+                        Rigidbody rb = carriedObjects[collideCarrying].GetComponent<Rigidbody>();//젤 마지막거 예외처리
+                        if (rb != null)
+                        {
+                            rb.freezeRotation = false;
+                        }
+                        carriedObjects[collideCarrying].GetComponent<Carryable>().carrying = false;//짐 들고있음 거짓으로
+                        carriedObjects.RemoveAt(collideCarrying);//제거
+                        if (carriedObjects.Count <= 0)
+                        {
+                            break;
+                        }
+                    }
+                    renum++;
+                    if (renum >= 10)
+                    {
+                        Debug.Log("반복 수 초과");
+                        break;
+                    }
+                }
+                Debug.Log("반복 수" + renum);
+
+                collideCarrying = 0;
             }
         }
     }
@@ -179,7 +225,6 @@ public class PlayerCarrying : MonoBehaviour
     {
         if (showDropGizmo)
         {
-            
             Gizmos.color = Color.red;
             Gizmos.DrawWireCube(lastDropPos, lastObjSize);
         }
