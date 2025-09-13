@@ -34,16 +34,16 @@ public sealed class QuestTodoUI : MonoBehaviour
     void Redraw()
     {
         if (!manager || !ContentsText) return;
-        if (!manager.TryGetSnapshot(questId, out var qs)) 
-        { 
-            ContentsText.text = ""; 
-            return; 
+        if (!manager.TryGetSnapshot(questId, out var qs))
+        {
+            ContentsText.text = "";
+            return;
         }
 
-        // 제목: 퀘스트가 전부 완료되면 제목에도 취소선
-        var sb = new StringBuilder(256);
-        var tb = new StringBuilder(256);
+        var sb = new StringBuilder(256); // 본문
+        var tb = new StringBuilder(256); // 제목
 
+        // 제목: 전체 완료 시 취소선
         AppendLineWithStrike(tb, qs.so.title, qs.completed);
 
         for (int i = 0; i < qs.objectives.Length; ++i)
@@ -51,11 +51,9 @@ public sealed class QuestTodoUI : MonoBehaviour
             var o = qs.objectives[i];
 
             sb.Append("- ");
-
             if (o.completed)
             {
-                sb.Append(S_OPEN);
-                sb.Append(o.def.displayName);
+                sb.Append(S_OPEN).Append(o.def.displayName);
                 if (o.def.optional) sb.Append(" (선택)");
                 sb.Append(S_CLOSE);
             }
@@ -64,49 +62,58 @@ public sealed class QuestTodoUI : MonoBehaviour
                 sb.Append(o.def.displayName);
                 if (o.def.optional) sb.Append(" (선택)");
             }
-
             sb.AppendLine();
 
-            // 서브태스크(예: 상자 3개 -> 각각 targetId 표시)
-            for (int s = 0; s < o.subs.Length; ++s)
+            // --- 서브태스크 출력 (targetId가 '_'로 시작하면 숨김) ---
+            var subs = o.subs;
+            if (subs != null && subs.Length > 0)
             {
-                if(s == 0)
+                bool hasVisible = false;
+                for (int s = 0; s < subs.Length; ++s)
                 {
-                    sb.Append("   · ");
-
-                    sb.Append("( ");
+                    var tid = subs[s].targetId;
+                    if (!string.IsNullOrEmpty(tid) && !tid.StartsWith("_"))
+                    {
+                        hasVisible = true;
+                        break;
+                    }
                 }
-                var st = o.subs[s];
-                if (st.done)
+
+                if (hasVisible)
                 {
-                    sb.Append(S_OPEN);
-                    sb.Append(st.targetId);
-                    sb.Append(S_CLOSE);
+                    sb.Append("   · ( ");
+                    bool firstPrinted = false;
+
+                    for (int s = 0; s < subs.Length; ++s)
+                    {
+                        var st = subs[s];
+                        var tid = st.targetId;
+
+                        // 숨김 규칙
+                        if (string.IsNullOrEmpty(tid) || tid.StartsWith("_"))
+                            continue;
+
+                        if (firstPrinted) sb.Append(", ");
+                        firstPrinted = true;
+
+                        if (st.done)
+                            sb.Append(S_OPEN).Append(tid).Append(S_CLOSE);
+                        else
+                            sb.Append(tid);
+                    }
+
+                    sb.Append(" )");
+                    sb.AppendLine();
                 }
-                else
-                {
-                    sb.Append(st.targetId);
-                }
-                
-                if(s != o.subs.Length - 1)
-                    sb.Append(", ");
-
-
-
+                // hasVisible == false면 아무 것도 추가하지 않음
             }
-
-            sb.Append(" )");
-
-            sb.AppendLine();
+            // subs가 없으면 아무 것도 추가하지 않음
         }
 
         if (qs.completed) tb.Append(">> 완료!");
 
-        Titletext.richText = true;
-        Titletext.text = tb.ToString();
-
-
-        ContentsText.richText = true; // 중요: 리치 텍스트 켜기
+        if (Titletext) { Titletext.richText = true; Titletext.text = tb.ToString(); }
+        ContentsText.richText = true;
         ContentsText.text = sb.ToString();
     }
 
