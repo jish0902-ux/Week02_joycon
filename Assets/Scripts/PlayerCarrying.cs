@@ -196,7 +196,7 @@ public class PlayerCarrying : MonoBehaviour
                 {
                     if (carriedObjects.Count > 0)
                     {
-                        Rigidbody rb = carriedObjects[collideCarrying]?.GetComponent<Rigidbody>();//젤 마지막거 예외처리
+                        Rigidbody2D rb = carriedObjects[collideCarrying].GetComponent<Rigidbody2D>();//젤 마지막거 예외처리
                         if (rb != null)
                         {
                             rb.freezeRotation = false;
