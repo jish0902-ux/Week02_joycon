@@ -73,6 +73,7 @@ public sealed class QuestManager : MonoBehaviour
         StartQuest(1002);
         StartQuest(1003);
         StartQuest(1004);
+        StartQuest(1005);
     }
 
     // --- Public API ---
