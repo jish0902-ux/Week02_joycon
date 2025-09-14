@@ -2,15 +2,15 @@ using UnityEngine;
 
 public class ComponentOnOff : MonoBehaviour
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
-    {
-        
-    }
+    public MonoBehaviour targetScript;
+    public bool conditionMet = false;
 
-    // Update is called once per frame
     void Update()
     {
-        
+        if (conditionMet && !targetScript.enabled)
+        {
+            targetScript.enabled = true; // 조건을 만족하면 스크립트 켜짐
+        }
+
     }
 }
