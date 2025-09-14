@@ -199,6 +199,7 @@ public class PlayerCarrying : MonoBehaviour
                 if (rb != null)
                 {
                     rb.transform.position = dropPos;
+                    rb.bodyType = RigidbodyType2D.Dynamic;
                     rb.freezeRotation = false;
                 }
 
@@ -226,7 +227,11 @@ public class PlayerCarrying : MonoBehaviour
             if (!go) { carriedObjects.RemoveAt(i); continue; }
 
             if (go.TryGetComponent<Rigidbody2D>(out var rb))
+            {
+                rb.bodyType = RigidbodyType2D.Dynamic;
                 rb.freezeRotation = false;
+            }
+                
 
             if (go.TryGetComponent<Carryable>(out var car))
                 car.carrying = false;
