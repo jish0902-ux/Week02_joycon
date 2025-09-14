@@ -1,25 +1,28 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 [RequireComponent(typeof(Controller2D))]
+[DisallowMultipleComponent]
 public class Player : MonoBehaviour
 {
+    // ===== Move / Jump =====
     [Header("Jump / Move")]
-    public float maxJumpHeight = 4;
-    public float minJumpHeight = 1;
+    public float maxJumpHeight = 4f;
+    public float minJumpHeight = 1f;
     public float timeToJumpApex = .4f;
-    float accelerationTimeAirborne = .2f;
-    float accelerationTimeGrounded = .1f;
-    float moveSpeed = 6;
+    [SerializeField] float accelerationTimeAirborne = .2f;
+    [SerializeField] float accelerationTimeGrounded = .1f;
+    [SerializeField] float moveSpeed = 6f;
 
-    public Vector2 wallJumpClimb;
-    public Vector2 wallJumpOff;
-    public Vector2 wallLeap;
+    public Vector2 wallJumpClimb = new Vector2(7.5f, 16f);
+    public Vector2 wallJumpOff = new Vector2(8f, 7f);
+    public Vector2 wallLeap = new Vector2(18f, 17f);
 
-    public float wallSlideSpeedMax = 3;
-    public float wallStickTime = .25f;
+    [SerializeField] float wallSlideSpeedMax = 3f;
+    [SerializeField] float wallStickTime = .25f;
+
     float timeToWallUnstick;
-
     float gravity;
     float maxJumpVelocity;
     float minJumpVelocity;
@@ -32,68 +35,93 @@ public class Player : MonoBehaviour
     bool wallSliding;
     int wallDirX;
 
-    // ---------- Ladder ----------
+    // ===== Ladder =====
     [Header("Ladder")]
-    [SerializeField] LayerMask ladderMask = 0;           // 사다리 레이어 마스크
+    [SerializeField] LayerMask ladderMask = 0;
     [SerializeField, Range(1f, 12f)] float climbSpeed = 5.0f;
-    [SerializeField, Range(0.05f, 1.0f)] float attachProbeHalfWidth = 0.25f; // 허리 폭
-    [SerializeField, Range(0.6f, 2.0f)] float attachProbeHeight = 1.4f;      // 허리 높이
-    [SerializeField, Range(0.1f, 20f)] float snapSpeed = 12f; // 사다리 중앙 X로 정렬 속도
-    [SerializeField] bool snapToCenterX = true;           // X 중앙 정렬 여부
-    [SerializeField, Range(0f, 10f)] float detachPush = 3.0f; // 좌/우로 이탈 시 수평 임펄스
+    [SerializeField, Range(0.05f, 1.0f)] float attachProbeHalfWidth = 0.25f;
+    [SerializeField, Range(0.6f, 2.0f)] float attachProbeHeight = 1.4f;
+    [SerializeField, Range(0.1f, 20f)] float snapSpeed = 12f;
+    [SerializeField] bool snapToCenterX = true;
+    [SerializeField, Range(0f, 10f)] float detachPush = 3.0f;
 
     bool onLadder;
-    Collider2D _ladderCol;        // 현재 붙은 사다리
-    float _ladderCenterX;         // 중앙 X 캐시
+    Collider2D _ladderCol;
+    float _ladderCenterX;
 
-    static readonly Collider2D[] sHits = new Collider2D[4]; // NonAlloc 버퍼
+    // ===== Solid / Contact Resolve =====
+    [Header("Solids / Resolve")]
+    [SerializeField] LayerMask solidMask = 0; // 벽/바닥/타일맵 레이어만 포함
+    [SerializeField, Range(0.001f, 0.01f)] float cornerEpsilon = 0.004f;
+    [SerializeField, Range(0f, 0.1f)] float wallLockAfterLand = 0.03f;
 
-    // ----------------------------
+    float wallLockTimer;
+    bool wasGrounded;
+
+    // ===== Buffers & Filters (NoAlloc) =====
+    static readonly Collider2D[] sHits = new Collider2D[8]; // ladder probe
+    static readonly Collider2D[] _overlapHits = new Collider2D[8]; // self overlap resolve
+    static readonly Collider2D[] _probeHits = new Collider2D[8]; // corner probe
+
+    private ContactFilter2D _solidFilter;
+    private Collider2D _selfCol;
+
+#if UNITY_EDITOR
+    // Debug gizmo
+    bool _drawAttachGizmo = true;
+#endif
+
+    void Awake()
+    {
+        controller = GetComponent<Controller2D>();
+        _selfCol = GetComponent<Collider2D>();
+
+        _solidFilter.useTriggers = false;
+        _solidFilter.SetLayerMask(solidMask); // useLayerMask = true 로 설정됨
+        _solidFilter.useDepth = false;
+    }
 
     void Start()
     {
-        controller = GetComponent<Controller2D>();
-
-        gravity = -(2 * maxJumpHeight) / Mathf.Pow(timeToJumpApex, 2);
+        gravity = -(2f * maxJumpHeight) / Mathf.Pow(timeToJumpApex, 2f);
         maxJumpVelocity = Mathf.Abs(gravity) * timeToJumpApex;
-        minJumpVelocity = Mathf.Sqrt(2 * Mathf.Abs(gravity) * minJumpHeight);
+        minJumpVelocity = Mathf.Sqrt(2f * Mathf.Abs(gravity) * minJumpHeight);
     }
 
     void Update()
     {
         float dt = Time.deltaTime;
 
-        // 기본 속도 계산(중력/수평 가감속)
         CalculateVelocityBase(dt);
 
-        // 벽타기(사다리 중에는 무시)
         if (!onLadder)
             HandleWallSliding();
 
-        // --- 이동량 예측 ---
         Vector2 move = velocity * dt;
 
-        // --- 사다리 입력/상태 처리 ---
         if (onLadder)
         {
             ApplyLadderMotion(ref move, dt);
-            // Controller2D 이동
             controller.Move(move, directionalInput);
 
-            // 사다리 도중엔 충돌로 y=0 보정하지 않는다(계단 같은 충돌 무시)
-            // 상/하로 사다리 범위를 벗어나면 자동 해제
+            // 사다리 중 충돌시 수직속도 정리(관통 방지)
+            if (controller.collisions.above && velocity.y > 0f) velocity.y = 0f;
+            if (controller.collisions.below && velocity.y < 0f) velocity.y = 0f;
+
+            //ResolveContactsAndClampVelocity();
+            CornerLockOnLanding(dt);
+
             if (!StillOnSameLadder())
                 DetachFromLadder();
         }
         else
         {
-            // 사다리에 붙을지 시도(↑ 입력 + 사다리 감지)
             TryAttachLadder();
 
-            // 일반 이동
             controller.Move(move, directionalInput);
+            //ResolveContactsAndClampVelocity();
+            CornerLockOnLanding(dt);
 
-            // 일반 충돌 보정
             if (controller.collisions.above || controller.collisions.below)
             {
                 if (controller.collisions.slidingDownMaxSlope)
@@ -104,18 +132,13 @@ public class Player : MonoBehaviour
         }
     }
 
-    // ==== Public Inputs ====
-
-    public void SetDirectionalInput(Vector2 input)
-    {
-        directionalInput = input;
-    }
+    // ===== Public Inputs =====
+    public void SetDirectionalInput(Vector2 input) => directionalInput = input;
 
     public void OnJumpInputDown()
     {
         if (onLadder)
         {
-            // 사다리에서 점프 → 위로 살짝 팝 + 해제
             DetachFromLadder();
             velocity.y = maxJumpVelocity * 0.8f;
             return;
@@ -123,12 +146,12 @@ public class Player : MonoBehaviour
 
         if (wallSliding)
         {
-            if (wallDirX == directionalInput.x)
+            if (wallDirX == Mathf.RoundToInt(directionalInput.x))
             {
                 velocity.x = -wallDirX * wallJumpClimb.x;
                 velocity.y = wallJumpClimb.y;
             }
-            else if (directionalInput.x == 0)
+            else if (Mathf.Abs(directionalInput.x) < 0.001f)
             {
                 velocity.x = -wallDirX * wallJumpOff.x;
                 velocity.y = wallJumpOff.y;
@@ -144,7 +167,7 @@ public class Player : MonoBehaviour
         {
             if (controller.collisions.slidingDownMaxSlope)
             {
-                if (directionalInput.x != -Mathf.Sign(controller.collisions.slopeNormal.x))
+                if (Mathf.RoundToInt(directionalInput.x) != -Mathf.Sign(controller.collisions.slopeNormal.x))
                 {
                     velocity.y = maxJumpVelocity * controller.collisions.slopeNormal.y;
                     velocity.x = maxJumpVelocity * controller.collisions.slopeNormal.x;
@@ -159,23 +182,18 @@ public class Player : MonoBehaviour
 
     public void OnJumpInputUp()
     {
-        if (onLadder) return; // 사다리 중엔 최소점프 로직 생략
-
-        if (velocity.y > minJumpVelocity)
-            velocity.y = minJumpVelocity;
+        if (onLadder) return;
+        if (velocity.y > minJumpVelocity) velocity.y = minJumpVelocity;
     }
 
-    // ==== Core Movement ====
-
+    // ===== Core Movement =====
     void CalculateVelocityBase(float dt)
     {
-        // 수평 가감속은 항상 적용(사다리 중엔 거의 0에 수렴)
         float targetVelocityX = directionalInput.x * moveSpeed;
         velocity.x = Mathf.SmoothDamp(
             velocity.x, targetVelocityX, ref velocityXSmoothing,
             (controller.collisions.below) ? accelerationTimeGrounded : accelerationTimeAirborne);
 
-        // 중력: 사다리 중엔 적용 X
         if (!onLadder)
             velocity.y += gravity * dt;
     }
@@ -184,20 +202,22 @@ public class Player : MonoBehaviour
     {
         wallDirX = (controller.collisions.left) ? -1 : 1;
         wallSliding = false;
+
         if ((controller.collisions.left || controller.collisions.right) &&
-            !controller.collisions.below && velocity.y < 0)
+            !controller.collisions.below && velocity.y < 0f)
         {
             wallSliding = true;
 
             if (velocity.y < -wallSlideSpeedMax)
                 velocity.y = -wallSlideSpeedMax;
 
-            if (timeToWallUnstick > 0)
+            if (timeToWallUnstick > 0f)
             {
-                velocityXSmoothing = 0;
-                velocity.x = 0;
+                velocityXSmoothing = 0f;
+                velocity.x = 0f;
 
-                if (directionalInput.x != wallDirX && directionalInput.x != 0)
+                if (Mathf.Abs(directionalInput.x) > 0.001f &&
+                    Mathf.RoundToInt(directionalInput.x) != wallDirX)
                     timeToWallUnstick -= Time.deltaTime;
                 else
                     timeToWallUnstick = wallStickTime;
@@ -209,33 +229,29 @@ public class Player : MonoBehaviour
         }
     }
 
-    // ==== Ladder Logic ====
-
+    // ===== Ladder Logic =====
     void TryAttachLadder()
     {
-        // Up 입력일 때만 붙기 시도(원하면 조건 제거 가능)
         if (directionalInput.y <= 0.1f) return;
 
-        // 플레이어 허리 중심에서 박스 오버랩
         Vector2 center = transform.position;
-        Vector2 half = new Vector2(attachProbeHalfWidth, attachProbeHeight * 0.5f);
+        Vector2 size = new Vector2(attachProbeHalfWidth * 2f, attachProbeHeight);
 
-        int hitCount = Physics2D.OverlapBoxNonAlloc(center, half * 2f, 0f, sHits, ladderMask);
-        if (hitCount == 0) return;
+        int hitCount = Physics2D.OverlapBoxNonAlloc(center, size, 0f, sHits, ladderMask);
+        if (hitCount <= 0) return;
 
-        // 가장 가까운 X 중심을 가진 사다리 선택
-        Collider2D best = null;
+        int bestIdx = -1;
         float bestDx = float.MaxValue;
         for (int i = 0; i < hitCount; ++i)
         {
-            var c = sHits[i];
-            if (!c) continue;
-            float dx = Mathf.Abs(c.bounds.center.x - center.x);
-            if (dx < bestDx) { bestDx = dx; best = c; }
+            var c = sHits[i]; if (!c) continue;
+            float ladderX = c.bounds.center.x; // 정확도가 더 중요하면 bounds 사용
+            float dx = Mathf.Abs(ladderX - center.x);
+            if (dx < bestDx) { bestDx = dx; bestIdx = i; }
         }
-        if (!best) return;
+        if (bestIdx < 0) return;
 
-        AttachToLadder(best);
+        AttachToLadder(sHits[bestIdx]);
     }
 
     void AttachToLadder(Collider2D ladder)
@@ -243,9 +259,7 @@ public class Player : MonoBehaviour
         onLadder = true;
         _ladderCol = ladder;
         _ladderCenterX = ladder.bounds.center.x;
-
-        // 사다리 진입 시 관성 제거(수직/수평)
-        velocity = Vector3.zero;
+        velocity = Vector3.zero; // 관성 제거
     }
 
     void DetachFromLadder()
@@ -257,8 +271,6 @@ public class Player : MonoBehaviour
     bool StillOnSameLadder()
     {
         if (!_ladderCol) return false;
-
-        // 현재 위치가 여전히 이 사다리 콜라이더와 겹치는가?
         Vector2 center = transform.position;
         Bounds b = _ladderCol.bounds;
         return b.min.x <= center.x && center.x <= b.max.x &&
@@ -267,48 +279,131 @@ public class Player : MonoBehaviour
 
     void ApplyLadderMotion(ref Vector2 move, float dt)
     {
-        // 1) 수직 이동: 위/아래 입력으로 등/하강
+        // 1) 수직 이동
         float vy = directionalInput.y * climbSpeed;
         move.y = vy * dt;
-        velocity.y = vy; // 관성 동기화
+        velocity.y = vy;
 
-        // 2) 수평 스냅: 중앙 X로 정렬(사다리 느낌 강화)
+        // 2) 수평 스냅
         if (snapToCenterX)
         {
             float x = transform.position.x;
             float newX = Mathf.MoveTowards(x, _ladderCenterX, snapSpeed * dt);
-            move.x = (newX - x);
-            velocity.x = (dt > 1e-6f) ? move.x / dt : 0f;
+            float dx = Mathf.Clamp(newX - x, -0.2f, 0.2f); // 과도한 밀기 방지
+            move.x = dx;
+            velocity.x = (dt > 1e-6f) ? dx / dt : 0f;
         }
         else
         {
-            // 스냅을 끄면 수평 속도는 0에 가깝게 유지
             move.x = 0f;
             velocity.x = 0f;
         }
 
-        // 3) 좌/우 입력으로 탈출(사다리에서 옆으로 뛰어내리기)
+        // 3) 좌/우 입력으로 탈출
         float ax = directionalInput.x;
         if (Mathf.Abs(ax) > 0.25f && Mathf.Abs(directionalInput.y) < 0.3f)
         {
             DetachFromLadder();
             velocity.x = Mathf.Sign(ax) * detachPush;
-            // 수직 속도는 현재값 유지(원하면 살짝 하강/상승을 줄 수도 있음)
         }
 
-        // 4) 하단 탈출: 아래로 강하게 누르면 빠져나오기
+        // 4) 하단 강탈출(원하면 즉시 Detach)
         if (directionalInput.y < -0.85f)
         {
-            // 사다리 바깥으로 벗어났다면 자동 해제(StillOnSameLadder가 다음 프레임에 false)
-            // 즉시 떨어지고 싶다면 아래처럼 바로 해제:
-            // DetachFromLadder();
+            // 선택: DetachFromLadder();
         }
     }
 
-    // ---- Debug Gizmos: 사다리 탐색 박스 확인용 ----
+    // ===== Resolve / Corner Guards =====
+    void ResolveContactsAndClampVelocity()
+    {
+        var col = controller.collisions;
+
+        // 수평 충돌 시 즉시 차단
+        if (col.left && velocity.x < 0f) { velocity.x = 0f; velocityXSmoothing = 0f; }
+        if (col.right && velocity.x > 0f) { velocity.x = 0f; velocityXSmoothing = 0f; }
+
+        if (!_selfCol) return;
+
+        // Unity 6: OverlapCollider -> Overlap(contactFilter, results)
+        int n = _selfCol.Overlap(_solidFilter, _overlapHits);
+        for (int i = 0; i < n; ++i)
+        {
+            var other = _overlapHits[i];
+            if (!other) continue;
+
+            var d = _selfCol.Distance(other); // isOverlapped, distance, normal
+            if (!d.isOverlapped) continue;
+
+            Vector2 pushOut = d.normal * (-d.distance + 0.001f);
+            transform.Translate(pushOut, Space.World);
+
+            float vn = Vector2.Dot((Vector2)velocity, d.normal);
+            if (vn > 0f) velocity -= (Vector3)(d.normal * vn);
+        }
+    }
+
+    void CornerLockOnLanding(float dt)
+    {
+        var col = controller.collisions;
+        bool grounded = col.below;
+        bool walling = col.left || col.right;
+
+        // 공중 -> 착지 프레임 + 벽 동시 접촉이면 잠깐 수평락 + 미세분리
+        if (grounded && !wasGrounded && walling)
+        {
+            wallLockTimer = wallLockAfterLand;
+            ZeroX();
+            MicroSeparateFromWall();
+        }
+        else if (grounded && wallLockTimer > 0f && walling)
+        {
+            wallLockTimer -= dt;
+            ZeroX();
+            MicroSeparateFromWall();
+        }
+
+        wasGrounded = grounded;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    void ZeroX()
+    {
+        velocity.x = 0f;
+        velocityXSmoothing = 0f;
+    }
+
+    // 겹치지 않았어도 코너 근접 시 살짝 밀어내기
+    void MicroSeparateFromWall()
+    {
+        if (!_selfCol) return;
+
+        var b = _selfCol.bounds;
+        Vector2 center = b.center;
+        Vector2 size = new Vector2(b.size.x + cornerEpsilon * 2f, b.size.y + cornerEpsilon * 2f);
+
+        int n = Physics2D.OverlapBoxNonAlloc(center, size, 0f, _probeHits, solidMask);
+        for (int i = 0; i < n; ++i)
+        {
+            var other = _probeHits[i];
+            if (!other) continue;
+
+            var d = _selfCol.Distance(other);
+            if (d.distance <= cornerEpsilon)
+            {
+                Vector2 push = d.normal * (cornerEpsilon - d.distance + 0.0005f);
+                transform.Translate(push, Space.World);
+
+                float vn = Vector2.Dot((Vector2)velocity, d.normal);
+                if (vn > 0f) velocity -= (Vector3)(d.normal * vn);
+            }
+        }
+    }
+
 #if UNITY_EDITOR
     void OnDrawGizmosSelected()
     {
+        if (!_drawAttachGizmo) return;
         Gizmos.color = onLadder ? Color.green : Color.yellow;
         Vector2 center = transform.position;
         Vector3 size = new Vector3(attachProbeHalfWidth * 2f, attachProbeHeight, 0.1f);
