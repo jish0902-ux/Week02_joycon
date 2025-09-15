@@ -272,7 +272,9 @@ public sealed class QuestManager : MonoBehaviour
             }
         }
 
-     
+
+        for (int i = 0; i < _changedIds.Count; ++i)
+            OnQuestUpdated?.Invoke(_changedIds[i]);
 
 
     }
