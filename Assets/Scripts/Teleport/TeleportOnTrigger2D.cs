@@ -194,7 +194,6 @@ public sealed class TeleportOnTrigger2D : MonoBehaviour
         return true;
     }
 
-    // ⬇️ Transform 강제 텔레포트(요청사항 반영)
     private void Teleport(Collider2D other)
     {
         // 이동시킬 루트 트랜스폼(리지드바디가 있으면 그 쪽으로)
@@ -216,7 +215,7 @@ public sealed class TeleportOnTrigger2D : MonoBehaviour
         if (alignRotation)
             root.SetPositionAndRotation(target.position, target.rotation);
         else
-            root.position = target.position;
+            root.position = new Vector3(target.position.x, target.position.y, root.position.z);
 
         // 물리/트리거 갱신 즉시 반영
         if (rb) rb.WakeUp();

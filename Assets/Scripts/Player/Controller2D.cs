@@ -163,6 +163,7 @@ public class Controller2D : RaycastController
                     }
                     if (playerInput.y == -1)
                     {
+                        Debug.Log("벽 뚤림");
                         collisions.fallingThroughPlatform = true;
                         Invoke("ResetFallingThroughPlatform", .01f);
                         continue;
