@@ -121,8 +121,8 @@ public class PlayerCarrying : MonoBehaviour
                 else
                     rot.z = 180f;
                 closestObj.transform.eulerAngles = rot;
-                
 
+                rb.bodyType = RigidbodyType2D.Dynamic;
                 rb.freezeRotation = true;
             }
 
