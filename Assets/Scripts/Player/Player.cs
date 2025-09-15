@@ -265,7 +265,7 @@ public class Player : MonoBehaviour
         // 4) 지상 점프
         if (controller.collisions.below)
         {
-            Debug.Log("지상 점프");
+            //Debug.Log("지상 점프");
 
             _jumpBufferTimer = 0f;
 
