@@ -15,4 +15,10 @@ public class AreaNameUI : MonoBehaviour
         if (!label) return;
         label.text = string.IsNullOrEmpty(name) ? "" : name;
     }
+
+
+
+
+
+
 }
