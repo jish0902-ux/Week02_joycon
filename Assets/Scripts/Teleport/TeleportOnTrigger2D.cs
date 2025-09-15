@@ -76,6 +76,14 @@ public sealed class TeleportOnTrigger2D : MonoBehaviour
         _lastEntered = other;
     }
 
+    void OnTriggerStay2D(Collider2D other)
+    {
+        if (!IsEligible(other)) return;
+        _inside.Add(other);
+        _lastEntered = other;
+    }
+
+
     void OnTriggerExit2D(Collider2D other)
     {
         _inside.Remove(other);
