@@ -52,12 +52,7 @@ public class PauseMenu : MonoBehaviour
     }
     public void ShowEndingScreen()
     {
-        if (endingUIPanel != null)
-        {
-            endingUIPanel.SetActive(true);
-            Time.timeScale = 0f;
-            Debug.Log("°ÔÀÓ ¿£µù ºÒ·¯¿È");
-        }
+        StartCoroutine(EndingFadeSequenceCoroutine());
     }
 
     public void GoToMainMenu()
@@ -68,6 +63,41 @@ public class PauseMenu : MonoBehaviour
     public void QuitGame()
     {
         Application.Quit();
+    }
+    private System.Collections.IEnumerator EndingFadeSequenceCoroutine()
+    {
+        yield return new WaitForSeconds(3f);
+
+        float elapsedTime = 0f;
+        Color color = fadeImage.color;
+        fadeImage.gameObject.SetActive(true);
+
+        while (elapsedTime < fadeDuration)
+        {
+            elapsedTime += Time.deltaTime;
+            color.a = Mathf.Clamp01(elapsedTime / fadeDuration);
+            fadeImage.color = color;
+            yield return null;
+        }
+        color.a = 1f;
+        fadeImage.color = color;
+
+        if (endingUIPanel != null)
+        {
+            endingUIPanel.SetActive(true);
+        }
+        elapsedTime = 0f;
+        while (elapsedTime < fadeDuration)
+        {
+            elapsedTime += Time.deltaTime;
+            color.a = 1f - Mathf.Clamp01(elapsedTime / fadeDuration);
+            fadeImage.color = color;
+            yield return null;
+        }
+        fadeImage.gameObject.SetActive(false);
+
+        Time.timeScale = 0f;
+        Debug.Log("°× ²ý");
     }
 
 }
