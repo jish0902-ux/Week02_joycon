@@ -49,7 +49,13 @@ public sealed class PlayerRespawn2D_RuntimeSO : MonoBehaviour
 
     void Teleport(Vector2 pos, float rotZ, bool snap)
     {
-        if (rb)
+
+        transform.SetPositionAndRotation(
+               new Vector3(pos.x, pos.y, transform.position.z),
+               Quaternion.Euler(0f, 0f, rotZ)
+           );
+
+       /* if (rb)
         {
             rb.linearVelocity = Vector2.zero;
             rb.angularVelocity = 0f;
@@ -62,7 +68,7 @@ public sealed class PlayerRespawn2D_RuntimeSO : MonoBehaviour
                 new Vector3(pos.x, pos.y, transform.position.z),
                 Quaternion.Euler(0f, 0f, rotZ)
             );
-        }
+        }*/
 
         if (snap)
         {

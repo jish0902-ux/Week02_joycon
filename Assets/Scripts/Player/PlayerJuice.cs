@@ -1,6 +1,6 @@
 using UnityEngine;
 using System.Collections;
-r
+
 public class PlayerJuice : MonoBehaviour
 {
     //스쿼시&스트레치를 적용할 실제 스프라이트 오브젝트의 Transform
