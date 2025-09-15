@@ -136,7 +136,7 @@ public class Player : MonoBehaviour
         // 기본 속도(중력/수평 스무딩)
         CalculateVelocityBase(dt);
 
-        // ★ 점프 선처리(최우선) → 이번 프레임에 점프 소비 여부 기록
+        // 점프 선처리(최우선) → 이번 프레임에 점프 소비 여부 기록
         _didJumpThisFrame = TryConsumeJump();
 
         if (!onLadder)
