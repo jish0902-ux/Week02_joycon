@@ -71,6 +71,10 @@ public class Player : MonoBehaviour
     [SerializeField, Range(0.001f, 0.01f)] float cornerEpsilon = 0.004f;
     [SerializeField, Range(0f, 0.1f)] float wallLockAfterLand = 0.03f;
 
+
+    [Header("Visuals")]
+    [SerializeField] private SpriteRenderer playerSprite;
+
     float wallLockTimer;
     bool wasGrounded;
 
@@ -132,6 +136,12 @@ public class Player : MonoBehaviour
         if (_ladderAttachBlockTimer > 0f) _ladderAttachBlockTimer = Mathf.Max(0f, _ladderAttachBlockTimer - dt);
         if (_ladderCoyoteTimer > 0f) _ladderCoyoteTimer = Mathf.Max(0f, _ladderCoyoteTimer - dt);
         if (_jumpBufferTimer > 0f) _jumpBufferTimer = Mathf.Max(0f, _jumpBufferTimer - dt);
+
+        if(playerSprite != null && directionalInput.x != 0)
+        {
+            playerSprite.flipX = directionalInput.x < 0;
+        }
+
 
         // 기본 속도(중력/수평 스무딩)
         CalculateVelocityBase(dt);
