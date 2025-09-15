@@ -82,6 +82,7 @@ public sealed class QuestManager : MonoBehaviour
              StartQuest(1004);
              StartQuest(1005);
         StartQuest(1006);*/
+        StartQuest(1000);
         StartQuest(2000);
         StartQuest(3000);
         StartQuest(4000);
