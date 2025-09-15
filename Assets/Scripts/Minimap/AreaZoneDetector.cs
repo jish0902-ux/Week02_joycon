@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 [RequireComponent(typeof(Collider2D))]
 public class AreaZoneDetector : MonoBehaviour
@@ -7,13 +8,28 @@ public class AreaZoneDetector : MonoBehaviour
     public string defaultName = "거리";
 
     [Header("Filter")]
-    [Tooltip("이 레이어의 콜라이더에만 반응 (예: AreaZone)")]
     [SerializeField] private LayerMask zoneMask;
+
+    QuestTodoUI questTodoUI;
+
+    // --- Dictionary 매핑 ---
+    private static readonly Dictionary<string, uint> ZoneToQuestId = new()
+    {
+        { "복도", 2000 },
+        { "식당", 3000 },
+        { "화장실", 3000 },
+        { "훈련소", 3000 },
+        { "무기고", 4000 },
+        { "보물창고", 4000 },
+        // 필요하면 계속 추가
+    };
 
     void Awake()
     {
         if (areaUI == null)
-            Debug.LogWarning("[AreaZoneDetector] areaUI가 비었습니다. 인스펙터에서 연결하세요.", this);
+            Debug.LogWarning("[AreaZoneDetector] areaUI가 비었습니다.", this);
+
+        questTodoUI = GameObject.FindAnyObjectByType<QuestTodoUI>();
     }
 
     void Start()
@@ -24,32 +40,19 @@ public class AreaZoneDetector : MonoBehaviour
 
     void OnTriggerEnter2D(Collider2D other)
     {
-        // 레이어 필터: 원치 않는 트리거엔 반응 안 함
         if (zoneMask.value != 0 && (zoneMask.value & (1 << other.gameObject.layer)) == 0)
             return;
 
         var zone = other.GetComponentInParent<AreaZone>();
-        if (zone == null)
-        {
-            // 다른 용도의 트리거에 진입했을 때 여기로 옴
-            // Debug.Log($"Enter non AreaZone: {other.name}");
-            return;
-        }
+        if (zone == null) return;
 
-        // 여기 오면 zone은 null 아님
-        // Debug.Log($"Enter: {zone.displayName}");
+        // UI 변경
         areaUI?.SetAreaName(zone.displayName);
-    }
 
-    // 나갈 때 기본값으로 돌리고 싶다면 주석 해제
-    /*
-    void OnTriggerExit2D(Collider2D other)
-    {
-        if (zoneMask.value != 0 && (zoneMask.value & (1 << other.gameObject.layer)) == 0)
-            return;
-
-        if (other.GetComponentInParent<AreaZone>() != null)
-            areaUI?.SetAreaName(defaultName);
+        // --- QuestTodoUI 변경 ---
+        if (questTodoUI != null && ZoneToQuestId.TryGetValue(zone.displayName, out uint qid))
+        {
+            questTodoUI.SetQuest(qid);
+        }
     }
-    */
 }
