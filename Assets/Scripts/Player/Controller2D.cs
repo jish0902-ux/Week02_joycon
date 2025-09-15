@@ -280,7 +280,7 @@ public class Controller2D : RaycastController
             if (hit)
             {
                 if (IsDroppingThrough() && hit.collider.CompareTag("Through"))
-                    return; // ★ 무시
+                    return;
 
                 float slopeAngle = Vector2.Angle(hit.normal, Vector2.up);
                 if (slopeAngle != 0 && slopeAngle <= maxSlopeAngle)
@@ -291,8 +291,8 @@ public class Controller2D : RaycastController
                         {
                             float moveDistance = Mathf.Abs(moveAmount.x);
                             float descendY = Mathf.Sin(slopeAngle * Mathf.Deg2Rad) * moveDistance;
-                            //moveAmount.x = Mathf.Cos(slopeAngle * Mathf.Deg2Rad) * moveDistance * Mathf.Sign(moveAmount.x);
-                            //moveAmount.y -= descendY;
+                            moveAmount.x = Mathf.Cos(slopeAngle * Mathf.Deg2Rad) * moveDistance * Mathf.Sign(moveAmount.x);
+                            moveAmount.y -= descendY;
 
                             collisions.slopeAngle = slopeAngle;
                             collisions.descendingSlope = true;

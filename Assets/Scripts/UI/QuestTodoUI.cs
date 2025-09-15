@@ -118,7 +118,6 @@ public sealed class QuestTodoUI : MonoBehaviour
             // subs가 없으면 아무 것도 추가하지 않음
         }
 
-        if (qs.completed) tb.Append(">> 완료!");
 
         if (Titletext) { Titletext.richText = true; Titletext.text = tb.ToString(); }
         ContentsText.richText = true;
@@ -129,7 +128,8 @@ public sealed class QuestTodoUI : MonoBehaviour
     {
         if (strike)
         {
-            sb.Append(S_OPEN).Append(str).Append(S_CLOSE).AppendLine();
+            sb.Append(S_OPEN).Append(str).Append(S_CLOSE);
+            sb.Append("              >> 완료!").AppendLine();
         }
         else
         {
