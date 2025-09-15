@@ -1,6 +1,7 @@
 ﻿using Game.Quests;
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 /// <summary>
@@ -54,13 +55,17 @@ public sealed class QuestManager : MonoBehaviour
     void OnEnable()
     {
         QuestEvents.OnInteract += OnInteract;
+        QuestEvents.OnInteractCanceled += OnInteractCanceled;
         QuestEvents.OnAreaStayTick += OnAreaStayTick;
         QuestEvents.OnDelivery += OnDelivery;
         QuestEvents.OnFlagRaised += OnFlagRaised;
     }
+
+
     void OnDisable()
     {
         QuestEvents.OnInteract -= OnInteract;
+        QuestEvents.OnInteractCanceled -= OnInteractCanceled;
         QuestEvents.OnAreaStayTick -= OnAreaStayTick;
         QuestEvents.OnDelivery -= OnDelivery;
         QuestEvents.OnFlagRaised -= OnFlagRaised;
@@ -156,7 +161,7 @@ public sealed class QuestManager : MonoBehaviour
     void OnInteract(QuestEvents.InteractMsg msg)
     {
 
-        Debug.Log("Events Raise" +  msg.id );
+        Debug.Log("Final Events Raise" +  msg.id );
         // 활성 퀘스트 목록 스냅샷
         _keysScratch.Clear();
         foreach (var id in _states.Keys) _keysScratch.Add(id);
@@ -195,6 +200,149 @@ public sealed class QuestManager : MonoBehaviour
         for (int i = 0; i < _changedIds.Count; ++i)
             OnQuestUpdated?.Invoke(_changedIds[i]);
     }
+
+    // 매니저 내부
+    // #define CANCEL_ALL_MATCHES // 켜면 매칭되는 서브태스크를 모두 되돌림(기본: 한 개만)
+
+    private void OnInteractCanceled(QuestEvents.InteractMsg msg)
+    {
+        Debug.Log("Final Events Canceled " + msg.id);
+
+        // 활성 퀘스트 키 스냅샷
+        _keysScratch.Clear();
+        foreach (var id in _states.Keys) _keysScratch.Add(id);
+
+        _changedIds.Clear();
+
+        int idHash = msg.idHash;
+        string idStr = msg.id;
+
+        for (int k = 0; k < _keysScratch.Count; ++k)
+        {
+            var questId = _keysScratch[k];
+            if (!_states.TryGetValue(questId, out var qs)) continue;
+            if (!qs.started) continue;
+
+            bool questChanged = false;
+
+            // 모든 오브젝트 훑되, 서브태스크 단위로 되감기
+            for (int i = qs.objectives.Length - 1; i >= 0; --i)
+            {
+                var os = qs.objectives[i];
+                if (os.subs == null || os.subs.Length == 0) continue;
+
+                bool objChanged = false;
+
+                // 뒤→앞: 최근 것에 가까운 항목을 먼저 되감기
+                for (int s = os.subs.Length - 1; s >= 0; --s)
+                {
+                    ref var sub = ref os.subs[s];
+                    if (!SubMatches(in sub, idHash, idStr)) continue;
+                    if (!sub.done) continue; // 이미 미완료면 건드릴 것 없음
+
+                    // --- 되감기: 해당 서브태스크만 롤백 ---
+                    sub.done = false;
+                    objChanged = true;
+
+#if !CANCEL_ALL_MATCHES
+                    break; // 한 개만 되돌릴 때
+#endif
+                }
+
+                if (!objChanged) continue;
+
+                // --- 오브젝트 완료 상태 재계산 ---
+                RecomputeObjectiveAfterCancel(os);
+                questChanged = true;
+            }
+
+            if (questChanged)
+            {
+                qs.completed = AreMandatoryObjectivesCompleted(qs);
+                _changedIds.Add(questId);
+            }
+        }
+
+        // 변경된 퀘스트만 알림
+        for (int i = 0; i < _changedIds.Count; ++i)
+            OnQuestUpdated?.Invoke(_changedIds[i]);
+
+        // ====== 로컬 헬퍼들 ======
+
+        // sub와 취소 id 매칭(해시 우선, 문자열 Ordinal 폴백)
+        static bool SubMatches(in SubTaskState sub, int idHash, string idStr)
+        {
+            if (idHash != 0)
+                return sub.targetHash == idHash;
+
+            return !string.IsNullOrEmpty(idStr) &&
+                   !string.IsNullOrEmpty(sub.targetId) &&
+                   string.Equals(sub.targetId, idStr, StringComparison.Ordinal);
+        }
+
+        // 서브태스크 변경 후 오브젝트 완료 상태/커서 재계산
+        static void RecomputeObjectiveAfterCancel(ObjectiveState os)
+        {
+            var def = os.def;
+            var subs = os.subs;
+            int n = subs?.Length ?? 0;
+
+            switch (def.type)
+            {
+                case ObjectiveType.InteractSet:
+                    {
+                        // 모든 서브가 done이면 완료
+                        bool all = true;
+                        for (int i = 0; i < n; ++i)
+                            if (!subs[i].done) { all = false; break; }
+                        os.completed = all;
+                        // 순서 커서는 사용하지 않음
+                        break;
+                    }
+                case ObjectiveType.InteractSequence:
+                    {
+                        if (def.mustFollowOrder)
+                        {
+                            // 앞에서부터 연속된 done 개수 = seqIndex
+                            int seq = 0;
+                            for (int i = 0; i < n; ++i)
+                            {
+                                if (subs[i].done) seq++;
+                                else break;
+                            }
+                            os.seqIndex = seq;
+                            os.completed = (seq >= n);
+                        }
+                        else
+                        {
+                            // 순서 무시 → Set과 동일
+                            bool all = true;
+                            for (int i = 0; i < n; ++i)
+                                if (!subs[i].done) { all = false; break; }
+                            os.completed = all;
+                        }
+                        break;
+                    }
+                case ObjectiveType.HoldOnTargets:
+                    {
+                        // requiredCount(기본: 모든 서브) 충족 여부
+                        int doneCnt = 0;
+                        for (int i = 0; i < n; ++i) if (subs[i].done) doneCnt++;
+                        int req = def.requiredCount <= 0 ? n : Mathf.Min(def.requiredCount, n);
+                        os.completed = (doneCnt >= Mathf.Max(1, req));
+                        break;
+                    }
+                // 아래 타입은 InteractCanceled에서 다루지 않음(별도 이벤트에서 처리)
+                case ObjectiveType.StayInArea:
+                case ObjectiveType.Delivery:
+                case ObjectiveType.TriggerFlags:
+                default:
+                    break;
+            }
+        }
+    }
+
+
 
     void OnAreaStayTick(string areaId, float deltaSec, Vector3 _pos)
     {
@@ -538,96 +686,6 @@ public sealed class QuestManager : MonoBehaviour
     readonly List<uint> _keysScratch = new(32);
     readonly List<uint> _changedIds = new(8);
 
-    // --- (세이브/로드) 확장 저장 포맷 ---
-    [Serializable] struct SaveSub { public string id; public bool done; public float stay; }
-    [Serializable] struct SaveObj { public SaveSub[] subs; public bool completed; public bool optional; public int seqIndex; public int progressCount; public int type; }
-    [Serializable] struct SaveQuest { public uint id; public bool started; public bool completed; public SaveObj[] objectives; }
-    [Serializable] struct SaveBlob { public SaveQuest[] quests; }
-
-    public string ToJson()
-    {
-        var list = new List<SaveQuest>(_states.Count);
-        foreach (var kv in _states)
-        {
-            var qs = kv.Value;
-            var so = qs.so;
-            var s = new SaveQuest { id = so.id, started = qs.started, completed = qs.completed };
-            s.objectives = new SaveObj[qs.objectives.Length];
-
-            for (int i = 0; i < qs.objectives.Length; ++i)
-            {
-                var o = qs.objectives[i];
-                var soj = new SaveObj
-                {
-                    completed = o.completed,
-                    optional = o.def.optional,
-                    seqIndex = o.seqIndex,
-                    progressCount = o.progressCount,
-                    type = (int)o.def.type
-                };
-                soj.subs = new SaveSub[o.subs.Length];
-                for (int k = 0; k < o.subs.Length; ++k)
-                {
-                    var sub = o.subs[k];
-                    soj.subs[k] = new SaveSub { id = sub.targetId, done = sub.done, stay = sub.staySeconds };
-                }
-                s.objectives[i] = soj;
-            }
-            list.Add(s);
-        }
-        return JsonUtility.ToJson(new SaveBlob { quests = list.ToArray() }, prettyPrint: false);
-    }
-
-    public void FromJson(string json)
-    {
-        if (string.IsNullOrEmpty(json)) return;
-        var blob = JsonUtility.FromJson<SaveBlob>(json);
-        if (blob.quests == null) return;
-
-        _states.Clear();
-
-        for (int i = 0; i < blob.quests.Length; ++i)
-        {
-            var sq = blob.quests[i];
-            var so = FindQuestSO(sq.id);
-            if (!so) continue;
-
-            var qs = BuildState(so);
-            qs.started = sq.started;
-            qs.completed = sq.completed;
-
-            int nObj = Mathf.Min(qs.objectives.Length, sq.objectives.Length);
-            for (int o = 0; o < nObj; ++o)
-            {
-                var src = sq.objectives[o];
-                var dst = qs.objectives[o];
-
-                dst.completed = src.completed;
-                dst.seqIndex = src.seqIndex;
-                dst.progressCount = src.progressCount;
-
-                int nSub = Mathf.Min(dst.subs.Length, src.subs.Length);
-                for (int s = 0; s < nSub; ++s)
-                {
-                    // id 해시 매칭으로 안정 복구
-                    int srcHash = Animator.StringToHash(src.subs[s].id ?? string.Empty);
-                    var sub = dst.subs[s];
-                    if (sub.targetHash == srcHash)
-                    {
-                        sub.done = src.subs[s].done;
-                        sub.staySeconds = src.subs[s].stay;
-                        dst.subs[s] = sub;
-                    }
-                }
-                qs.objectives[o] = dst;
-            }
-
-            // 플래그형은 즉시 재확인
-            EvaluateImmediateObjectives(qs);
-            _states[sq.id] = qs;
-        }
-        // 필요한 경우 여기서 전체 브로드캐스트 가능
-    }
-
+   
 
 }
