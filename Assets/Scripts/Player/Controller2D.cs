@@ -138,7 +138,7 @@ public class Controller2D : RaycastController
         float directionY = Mathf.Sign(moveAmount.y);
         float rayLength = Mathf.Abs(moveAmount.y) + skinWidth;
 
-        Debug.Log($"directionY {directionY},rayLength {rayLength}, moveAmount.y {moveAmount.y}");
+        //Debug.Log($"directionY {directionY},rayLength {rayLength}, moveAmount.y {moveAmount.y}");
         for (int i = 0; i < verticalRayCount; i++)
         {
 
