@@ -20,7 +20,7 @@ public class PlayerParticleController : MonoBehaviour
     {
         float distanceMoved = Vector2.Distance(lastPosition, transform.position);
 
-        bool isMoving = distanceMoved > 0;
+        bool isMoving = distanceMoved > 0.01f;
 
         if (isMoving != particleEmissionModule.enabled) particleEmissionModule.enabled = isMoving;
 
