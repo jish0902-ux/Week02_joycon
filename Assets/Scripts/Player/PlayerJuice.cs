@@ -10,6 +10,9 @@ public class PlayerJuice : MonoBehaviour
     [SerializeField] private Vector3 landSqueeze = new Vector3(1.2f, 0.8f, 1f);
     [SerializeField] private float squeezeDuration = 0.1f;
 
+    [SerializeField] private float landEffectCooldown = 0.2f;
+    private float lastLandTIme;
+
     private Controller2D controller;
 
     private bool wasOnGround; //이전 프레임에 땅에 있었는지
@@ -33,7 +36,13 @@ public class PlayerJuice : MonoBehaviour
 
     private void Update()
     {
-        if (!wasOnGround && controller.collisions.below) { PlayLandEffects(); } //착지 효과
+        bool landedThisFrame = !wasOnGround && controller.collisions.below;
+
+        if (landedThisFrame && Time.time - lastLandTIme > landEffectCooldown) 
+        {
+            lastLandTIme = Time.time;
+            PlayLandEffects();
+        }//착지 효과
         wasOnGround = controller.collisions.below;
 
     }
