@@ -21,6 +21,7 @@ public class AreaZoneDetector : MonoBehaviour
         { "훈련소", 3000 },
         { "무기고", 4000 },
         { "보물창고", 4000 },
+        { "테스트", 9000 },
         // 필요하면 계속 추가
     };
 

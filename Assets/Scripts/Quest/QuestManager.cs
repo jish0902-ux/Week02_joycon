@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using UnityEngine;
+using static QuestManager;
 
 /// <summary>
 /// 최적화 포인트:
@@ -43,6 +44,7 @@ public sealed class QuestManager : MonoBehaviour
         public QuestSO so;
         public bool started;
         public bool completed;
+        public bool completionEventRaised;
         public ObjectiveState[] objectives;
     }
 
@@ -83,7 +85,8 @@ public sealed class QuestManager : MonoBehaviour
         StartQuest(2000);
         StartQuest(3000);
         StartQuest(4000);
-        
+        StartQuest(9000); //테스트
+
     }
 
     // --- Public API ---
@@ -106,6 +109,8 @@ public sealed class QuestManager : MonoBehaviour
         EvaluateImmediateObjectives(newState);
         _states[questId] = newState;
         OnQuestUpdated?.Invoke(questId);
+
+
         return true;
     }
 
@@ -200,6 +205,9 @@ public sealed class QuestManager : MonoBehaviour
 
         for (int i = 0; i < _changedIds.Count; ++i)
             OnQuestUpdated?.Invoke(_changedIds[i]);
+
+        TryRaiseCompletedForChanged();
+
     }
 
     // 매니저 내부
@@ -264,82 +272,80 @@ public sealed class QuestManager : MonoBehaviour
             }
         }
 
-        // 변경된 퀘스트만 알림
-        for (int i = 0; i < _changedIds.Count; ++i)
-            OnQuestUpdated?.Invoke(_changedIds[i]);
+     
 
-        // ====== 로컬 헬퍼들 ======
 
-        // sub와 취소 id 매칭(해시 우선, 문자열 Ordinal 폴백)
-        static bool SubMatches(in SubTaskState sub, int idHash, string idStr)
+    }
+
+    // sub와 취소 id 매칭(해시 우선, 문자열 Ordinal 폴백)
+    static bool SubMatches(in SubTaskState sub, int idHash, string idStr)
+    {
+        if (idHash != 0)
+            return sub.targetHash == idHash;
+
+        return !string.IsNullOrEmpty(idStr) &&
+               !string.IsNullOrEmpty(sub.targetId) &&
+               string.Equals(sub.targetId, idStr, StringComparison.Ordinal);
+    }
+
+    // 서브태스크 변경 후 오브젝트 완료 상태/커서 재계산
+    static void RecomputeObjectiveAfterCancel(ObjectiveState os)
+    {
+        var def = os.def;
+        var subs = os.subs;
+        int n = subs?.Length ?? 0;
+
+        switch (def.type)
         {
-            if (idHash != 0)
-                return sub.targetHash == idHash;
-
-            return !string.IsNullOrEmpty(idStr) &&
-                   !string.IsNullOrEmpty(sub.targetId) &&
-                   string.Equals(sub.targetId, idStr, StringComparison.Ordinal);
-        }
-
-        // 서브태스크 변경 후 오브젝트 완료 상태/커서 재계산
-        static void RecomputeObjectiveAfterCancel(ObjectiveState os)
-        {
-            var def = os.def;
-            var subs = os.subs;
-            int n = subs?.Length ?? 0;
-
-            switch (def.type)
-            {
-                case ObjectiveType.InteractSet:
+            case ObjectiveType.InteractSet:
+                {
+                    // 모든 서브가 done이면 완료
+                    bool all = true;
+                    for (int i = 0; i < n; ++i)
+                        if (!subs[i].done) { all = false; break; }
+                    os.completed = all;
+                    // 순서 커서는 사용하지 않음
+                    break;
+                }
+            case ObjectiveType.InteractSequence:
+                {
+                    if (def.mustFollowOrder)
                     {
-                        // 모든 서브가 done이면 완료
+                        // 앞에서부터 연속된 done 개수 = seqIndex
+                        int seq = 0;
+                        for (int i = 0; i < n; ++i)
+                        {
+                            if (subs[i].done) seq++;
+                            else break;
+                        }
+                        os.seqIndex = seq;
+                        os.completed = (seq >= n);
+                    }
+                    else
+                    {
+                        // 순서 무시 → Set과 동일
                         bool all = true;
                         for (int i = 0; i < n; ++i)
                             if (!subs[i].done) { all = false; break; }
                         os.completed = all;
-                        // 순서 커서는 사용하지 않음
-                        break;
                     }
-                case ObjectiveType.InteractSequence:
-                    {
-                        if (def.mustFollowOrder)
-                        {
-                            // 앞에서부터 연속된 done 개수 = seqIndex
-                            int seq = 0;
-                            for (int i = 0; i < n; ++i)
-                            {
-                                if (subs[i].done) seq++;
-                                else break;
-                            }
-                            os.seqIndex = seq;
-                            os.completed = (seq >= n);
-                        }
-                        else
-                        {
-                            // 순서 무시 → Set과 동일
-                            bool all = true;
-                            for (int i = 0; i < n; ++i)
-                                if (!subs[i].done) { all = false; break; }
-                            os.completed = all;
-                        }
-                        break;
-                    }
-                case ObjectiveType.HoldOnTargets:
-                    {
-                        // requiredCount(기본: 모든 서브) 충족 여부
-                        int doneCnt = 0;
-                        for (int i = 0; i < n; ++i) if (subs[i].done) doneCnt++;
-                        int req = def.requiredCount <= 0 ? n : Mathf.Min(def.requiredCount, n);
-                        os.completed = (doneCnt >= Mathf.Max(1, req));
-                        break;
-                    }
-                // 아래 타입은 InteractCanceled에서 다루지 않음(별도 이벤트에서 처리)
-                case ObjectiveType.StayInArea:
-                case ObjectiveType.Delivery:
-                case ObjectiveType.TriggerFlags:
-                default:
                     break;
-            }
+                }
+            case ObjectiveType.HoldOnTargets:
+                {
+                    // requiredCount(기본: 모든 서브) 충족 여부
+                    int doneCnt = 0;
+                    for (int i = 0; i < n; ++i) if (subs[i].done) doneCnt++;
+                    int req = def.requiredCount <= 0 ? n : Mathf.Min(def.requiredCount, n);
+                    os.completed = (doneCnt >= Mathf.Max(1, req));
+                    break;
+                }
+            // 아래 타입은 InteractCanceled에서 다루지 않음(별도 이벤트에서 처리)
+            case ObjectiveType.StayInArea:
+            case ObjectiveType.Delivery:
+            case ObjectiveType.TriggerFlags:
+            default:
+                break;
         }
     }
 
@@ -384,6 +390,9 @@ public sealed class QuestManager : MonoBehaviour
 
         for (int i = 0; i < _changedIds.Count; ++i)
             OnQuestUpdated?.Invoke(_changedIds[i]);
+
+        TryRaiseCompletedForChanged();
+
     }
 
     void OnDelivery(string itemId, string receiverId, Vector3 _pos)
@@ -425,6 +434,9 @@ public sealed class QuestManager : MonoBehaviour
 
         for (int i = 0; i < _changedIds.Count; ++i)
             OnQuestUpdated?.Invoke(_changedIds[i]);
+
+        TryRaiseCompletedForChanged();
+
     }
 
     void OnFlagRaised(string _flagId)
@@ -465,6 +477,8 @@ public sealed class QuestManager : MonoBehaviour
 
         for (int i = 0; i < _changedIds.Count; ++i)
             OnQuestUpdated?.Invoke(_changedIds[i]);
+
+        TryRaiseCompletedForChanged();
     }
 
     // --- 진행 로직 ---
@@ -485,6 +499,23 @@ public sealed class QuestManager : MonoBehaviour
         }
         return true;
     }
+
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    private void TryRaiseCompletedForChanged()
+    {
+        for (int i = 0; i < _changedIds.Count; ++i)
+        {
+            var qid = _changedIds[i];
+            if (!_states.TryGetValue(qid, out var s) || s == null) continue;
+            if (s.completed && !s.completionEventRaised)
+            {
+                s.so?.RaiseCompleted();        
+                s.completionEventRaised = true; // 중복 방지
+            }
+        }
+    }
+
 
     // 상호작용 이벤트 기반 진행
     static bool TryProgressObjective_OnInteract(ObjectiveState os, QuestEvents.InteractMsg msg)
