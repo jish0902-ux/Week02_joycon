@@ -13,7 +13,7 @@ public class StartMenu : MonoBehaviour
 
     void OnClickStart()
     {
-        SceneManager.LoadScene("YujinSampleScene");
+        SceneManager.LoadScene("MapDesign");
     }
 
 }
