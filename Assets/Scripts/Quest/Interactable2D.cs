@@ -3,6 +3,7 @@ using UnityEngine;
 
 public enum InteractionKind : byte
 {
+    None,
     Press,          // 키 눌렀을 때 즉시
     Hold,           // 일정 시간 홀드
     EnterArea,      // 트리거 진입형(스캐너 없이 트리거가 Raise)
