@@ -74,15 +74,16 @@ public sealed class QuestManager : MonoBehaviour
     void Awake()
     {
         // 데모: 원하는 퀘스트 시작
-        StartQuest(1001);
-        StartQuest(1002);
-        StartQuest(1003);
-        StartQuest(1004);
-        StartQuest(1005);
+        /*     StartQuest(1001);
+             StartQuest(1002);
+             StartQuest(1003);
+             StartQuest(1004);
+             StartQuest(1005);
+        StartQuest(1006);*/
         StartQuest(2000);
-        StartQuest(1005);
-        StartQuest(1010);
-        StartQuest(1006);
+        StartQuest(3000);
+        StartQuest(4000);
+        
     }
 
     // --- Public API ---

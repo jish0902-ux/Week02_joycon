@@ -26,6 +26,14 @@ public sealed class QuestTodoUI : MonoBehaviour
             manager.OnQuestUpdated -= OnQuestUpdated;
     }
 
+    public void SetQuest(uint newId)
+    {
+        questId = newId;
+        Redraw(); // 변경 즉시 UI 갱신
+    }
+
+
+
     void OnQuestUpdated(uint changedId)
     {
         if (changedId == questId) Redraw();
