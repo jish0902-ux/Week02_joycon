@@ -1,10 +1,14 @@
 using System.Xml.Serialization;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class PauseMenu : MonoBehaviour
 {
     public static PauseMenu Instance { get; private set; }
     [SerializeField] private GameObject endingUIPanel;
+
+    [SerializeField] private Image fadeImage;
+    [SerializeField] private float fadeDuration = 1.5f;
 
     public GameObject pauseMenuUI;
     private bool isPaused = false;
