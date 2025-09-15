@@ -1,6 +1,6 @@
-using System.Xml.Serialization;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.InputSystem;
 
 public class PauseMenu : MonoBehaviour
 {
@@ -24,18 +24,20 @@ public class PauseMenu : MonoBehaviour
         endingUIPanel.SetActive(false);
         Time.timeScale = 1f;
     }
-    private void Update()
-    {
-        if (endingUIPanel.activeSelf)
-        {
-            return;
-        }
 
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            if (isPaused) Resume();
-            else Pause();
-        }
+    public void OnPause(InputAction.CallbackContext context)
+    {
+        if (context.performed) TogglePause();
+    }
+
+    public void TogglePause()
+    {
+        if (endingUIPanel.activeSelf) return;
+
+        isPaused = !isPaused;
+        if (isPaused) Pause();
+        else Resume();
+
     }
 
     public void Resume()
