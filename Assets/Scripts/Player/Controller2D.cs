@@ -138,6 +138,7 @@ public class Controller2D : RaycastController
         float directionY = Mathf.Sign(moveAmount.y);
         float rayLength = Mathf.Abs(moveAmount.y) + skinWidth;
 
+        Debug.Log($"directionY {directionY},rayLength {rayLength}, moveAmount.y {moveAmount.y}");
         for (int i = 0; i < verticalRayCount; i++)
         {
 
@@ -169,7 +170,11 @@ public class Controller2D : RaycastController
                     }
                 }
 
-                moveAmount.y = (hit.distance - skinWidth) * directionY;
+                moveAmount.y = (hit.distance - skinWidth) * directionY;    // 바닥에 닿으면 다음 값 -7.019378E-06
+
+                if (moveAmount.y < 0.001f)
+                    moveAmount.y = 0;
+
                 rayLength = hit.distance;
 
                 if (collisions.climbingSlope)
