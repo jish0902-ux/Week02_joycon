@@ -16,7 +16,7 @@ public sealed class TeleportOnTrigger2D : MonoBehaviour
     [Header("Behavior")]
     [SerializeField] private bool alignRotation = false;        // 회전 동기화
     [SerializeField] private bool preserveVelocity = true;      // 속도 유지
-    [SerializeField, Min(0f)] private float perObjectCooldown = 0.15f; // 왕복 방지
+    [SerializeField, Min(0f)] private float perObjectCooldown = 0.15f; // 왕복 방지(인스턴스 기준)
 
     [Header("Input (New Input System)")]
     [Tooltip("여기에 액션(예: Interact/Teleport)을 참조로 연결하면, performed 시 텔레포트합니다.")]
@@ -35,11 +35,12 @@ public sealed class TeleportOnTrigger2D : MonoBehaviour
     private Collider2D _lastEntered;
     private int _includeMask;
 
-    // 🔒 전역 프레임 가드(모든 텔레포터 공통): 한 프레임 1회만 처리
-    private static int s_lastInputFrame = -1;
+    // ⬇️ 전역 대신, 인스턴스 단위 프레임 가드
+    private int _lastInputFrame = -1;
 
-    // 대상 오브젝트에 부착되는 쿨다운 스탬프(모든 텔레포터가 공유)
-    sealed class TeleportStamp : MonoBehaviour { public float ignoreUntil; }
+    // ⬇️ 전역 컴포넌트(TeleportStamp) 대신, 인스턴스 딕셔너리로 쿨다운 관리
+    // key: 텔레포트 대상 GameObject.GetInstanceID()
+    private readonly Dictionary<int, float> _cooldownUntil = new Dictionary<int, float>(64);
 
     void Reset()
     {
@@ -67,6 +68,11 @@ public sealed class TeleportOnTrigger2D : MonoBehaviour
     {
         if (teleportAction != null)
             teleportAction.action.performed -= OnTeleportPerformed;
+
+        // 인스턴스 상태 정리(선택)
+        _inside.Clear();
+        _cooldownUntil.Clear();
+        _lastEntered = null;
     }
 
     void OnTriggerEnter2D(Collider2D other)
@@ -99,9 +105,9 @@ public sealed class TeleportOnTrigger2D : MonoBehaviour
     // ───────────────────────────────── 핵심 로직 ─────────────────────────────────
     private void TryTeleportByInput()
     {
-        // 전역 프레임 가드
-        if (Time.frameCount == s_lastInputFrame) return;
-        s_lastInputFrame = Time.frameCount;
+        // 인스턴스 프레임 가드
+        if (Time.frameCount == _lastInputFrame) return;
+        _lastInputFrame = Time.frameCount;
 
         if (!target) return;
 
@@ -118,11 +124,11 @@ public sealed class TeleportOnTrigger2D : MonoBehaviour
             if (!chosen) return;
         }
 
-        var key = CooldownKey(chosen);
-        if (IsOnCooldown(key)) return;
+        var go = CooldownKey(chosen);
+        if (IsOnCooldown(go)) return;
 
-        Teleport(chosen);            
-        StampCooldown(key);
+        Teleport(chosen);
+        StampCooldown(go);
     }
 
     private Collider2D PickCandidate()
@@ -130,6 +136,7 @@ public sealed class TeleportOnTrigger2D : MonoBehaviour
         if (_lastEntered && _inside.Contains(_lastEntered))
             return _lastEntered;
 
+        // 첫 번째 유효 콜라이더 하나 고름
         foreach (var c in _inside)
             if (c) return c;
         return null;
@@ -161,16 +168,14 @@ public sealed class TeleportOnTrigger2D : MonoBehaviour
     private bool IsOnCooldown(GameObject go)
     {
         if (perObjectCooldown <= 0f) return false;
-        return go.TryGetComponent<TeleportStamp>(out var s) && s.ignoreUntil > Time.unscaledTime;
+        int id = go.GetInstanceID();
+        return _cooldownUntil.TryGetValue(id, out var until) && until > Time.unscaledTime;
     }
 
     private void StampCooldown(GameObject go)
     {
         if (perObjectCooldown <= 0f) return;
-        if (!go.TryGetComponent<TeleportStamp>(out var s))
-            s = go.gameObject.AddComponent<TeleportStamp>();
-        s.hideFlags = HideFlags.DontSaveInBuild | HideFlags.DontSaveInEditor;
-        s.ignoreUntil = Time.unscaledTime + perObjectCooldown;
+        _cooldownUntil[go.GetInstanceID()] = Time.unscaledTime + perObjectCooldown;
     }
 
     private bool IsEligible(Collider2D other)
@@ -181,7 +186,7 @@ public sealed class TeleportOnTrigger2D : MonoBehaviour
         return true;
     }
 
-    // ⬇️⬇️ Transform 강제 텔레포트(요청사항 반영)
+    // ⬇️ Transform 강제 텔레포트(요청사항 반영)
     private void Teleport(Collider2D other)
     {
         // 이동시킬 루트 트랜스폼(리지드바디가 있으면 그 쪽으로)
@@ -191,7 +196,11 @@ public sealed class TeleportOnTrigger2D : MonoBehaviour
         var rb = other.attachedRigidbody;
         if (rb && !preserveVelocity)
         {
+#if UNITY_6000_0_OR_NEWER
             rb.linearVelocity = Vector2.zero;
+#else
+            rb.velocity = Vector2.zero;
+#endif
             rb.angularVelocity = 0f;
         }
 
