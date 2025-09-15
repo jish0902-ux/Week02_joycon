@@ -15,12 +15,12 @@ public class AreaZoneDetector : MonoBehaviour
     // --- Dictionary 매핑 ---
     private static readonly Dictionary<string, uint> ZoneToQuestId = new()
     {
-        { "복도", 2000 },
-        { "식당", 3000 },
-        { "화장실", 3000 },
-        { "훈련소", 3000 },
-        { "무기고", 4000 },
-        { "보물창고", 4000 },
+        { "복도", 1000 },
+        { "식당", 2000 },
+        { "화장실", 2000 },
+        { "훈련소", 2000 },
+        { "무기고", 3000 },
+        { "보물창고", 3000 },
         { "테스트", 9000 },
         // 필요하면 계속 추가
     };
